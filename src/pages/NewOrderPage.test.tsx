@@ -6,6 +6,7 @@ import { NewOrderPage } from './NewOrderPage'
 vi.mock('../api/orders', () => ({
   listClients: vi.fn().mockResolvedValue([{ id:1,nombre:'Ana',apellido:'Martínez',telefono:'5555',activo:true }]),
   listGarmentTypes: vi.fn().mockResolvedValue([{ id:2,nombre:'Camisa',descripcion:'',activo:true }]), createOrder:vi.fn(), addGarments:vi.fn(),
+  listServices: vi.fn().mockResolvedValue([{ id:3,nombre:'Lavado',precio_base:25,activo:true }]),
 }))
 describe('NewOrderPage', () => {
   it('requiere cliente, permite seleccionarlo y agregar varias prendas', async () => {
