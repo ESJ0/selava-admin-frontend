@@ -6,7 +6,7 @@ function getRole(token: string) {
 }
 const initialToken = sessionStorage.getItem('selava_token')
 export const useAuth = create<AuthState>((set) => ({
-  token: initialToken, roleId: initialToken ? getRole(initialToken) : null,
+  token: initialToken, roleId: initialToken ? getRole(initialToken) : 1,
   setToken: (token) => { sessionStorage.setItem('selava_token', token); set({ token, roleId: getRole(token) }) },
   logout: () => { sessionStorage.removeItem('selava_token'); set({ token: null, roleId: null }) },
 }))
