@@ -1,6 +1,6 @@
 import { Check, ChevronLeft, ChevronRight, Plus, Search, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { addGarments, createOrder, listClients, listGarmentTypes, listServices } from '../api/orders'
+import { createOrder, listClients, listGarmentTypes, listServices } from '../api/orders'
 import { errorMessage } from '../api/client'
 import type { Cliente, PrendaDraft, Servicio, TipoPrenda } from '../types'
 
@@ -17,7 +17,7 @@ export function NewOrderPage() {
   function next() { setError(''); if (step === 1 && !selected) return setError('Selecciona un cliente para continuar.'); if (step === 2 && garments.some(g => !g.tipo_prenda_id || !Number.isInteger(g.cantidad) || g.cantidad <= 0)) return setError('Selecciona el tipo y una cantidad mayor que cero para cada prenda.'); if (step === 4 && !deliveryDate) return setError('Selecciona una fecha estimada de entrega.'); setStep(s => Math.min(s + 1, 5)) }
   function toggleService(index: number, serviceId: number) { const current = garments[index].servicio_ids; updateGarment(index, { servicio_ids: current.includes(serviceId) ? current.filter(id => id !== serviceId) : [...current, serviceId] }) }
   const total = garments.reduce((sum, garment) => sum + garment.servicio_ids.reduce((subtotal, id) => subtotal + (services.find(service => service.id === id)?.precio_base ?? 0) * garment.cantidad, 0), 0)
-  async function submit() { if (!selected || !deliveryDate) return; setSubmitting(true); setError(''); try { const order = await createOrder(selected.id, deliveryDate, observations); await addGarments(order.id, garments); setCreatedId(order.id) } catch (e) { setError(errorMessage(e)) } finally { setSubmitting(false) } }
+  async function submit() { if (!selected || !deliveryDate) return; setSubmitting(true); setError(''); try { const order = await createOrder(selected.id, deliveryDate, observations, garments); setCreatedId(order.id) } catch (e) { setError(errorMessage(e)) } finally { setSubmitting(false) } }
   if (createdId) return <section className="order-success"><span><Check size={48}/></span><h1>Pedido creado correctamente</h1><p>Número de pedido</p><strong>#SLV-{String(createdId).padStart(4,'0')}</strong><button className="primary" onClick={() => { setCreatedId(null); setStep(1); setSelected(null); setGarments([blankGarment()]) }}>Crear otro pedido</button></section>
   return <section className="order-page"><div className="stepper">{steps.map((label, index) => { const number = index + 1; return <div className={`step ${step === number ? 'current' : ''} ${step > number ? 'done' : ''}`} key={label}><span>{step > number ? <Check size={19}/> : number}</span><small>{label}</small></div> })}</div>
     <section className="wizard-card">
