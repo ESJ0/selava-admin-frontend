@@ -25,6 +25,7 @@ describe('NewOrderPage', () => {
     await user.click(screen.getByRole('button',{name:/siguiente/i})) // -> paso 2 (prendas)
     await user.selectOptions(screen.getByLabelText(/tipo de prenda/i), '2')
     await user.click(screen.getByRole('button',{name:/siguiente/i})) // -> paso 3 (servicios)
+    await user.click(screen.getByRole('checkbox', { name: /lavado/i }))
     await user.click(screen.getByRole('button',{name:/siguiente/i})) // -> paso 4 (fecha)
     await user.type(screen.getByLabelText(/fecha estimada de entrega/i), '2026-09-01')
     await user.click(screen.getByRole('button',{name:/siguiente/i})) // -> paso 5 (resumen)
@@ -35,7 +36,7 @@ describe('NewOrderPage', () => {
       1,
       '2026-09-01',
       '',
-      [expect.objectContaining({ tipo_prenda_id: 2, cantidad: 1 })],
+      [expect.objectContaining({ tipo_prenda_id: 2, cantidad: 1, servicio_ids: [3] })],
     )
     expect(await screen.findByText('Pedido creado correctamente')).toBeInTheDocument()
   })

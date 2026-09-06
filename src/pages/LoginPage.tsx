@@ -4,9 +4,9 @@ import { api, errorMessage } from '../api/client'
 import { useAuth } from '../store/auth'
 
 export function LoginPage() {
-  const token = useAuth((s) => s.token); const setToken = useAuth((s) => s.setToken)
+  const token = useAuth((s) => s.token); const roleId = useAuth((s) => s.roleId); const setToken = useAuth((s) => s.setToken)
   const [error, setError] = useState(''); const [loading, setLoading] = useState(false)
-  if (token) return <Navigate to="/servicios" replace />
+  if (token) return <Navigate to={roleId === 3 ? '/pedidos' : '/servicios'} replace />
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setLoading(true); setError(''); const data = new FormData(event.currentTarget)
     try { const response = await api.post<{token:string}>('/auth/login', { email: data.get('email'), password: data.get('password') }); setToken(response.data.token) }
