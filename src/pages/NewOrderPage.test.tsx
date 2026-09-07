@@ -8,7 +8,7 @@ vi.mock('../api/orders', () => ({
   listClients: vi.fn().mockResolvedValue([{ id:1,nombre:'Ana',apellido:'Martínez',telefono:'5555',activo:true }]),
   listGarmentTypes: vi.fn().mockResolvedValue([{ id:2,nombre:'Camisa',descripcion:'',activo:true }]),
   createOrder: vi.fn().mockResolvedValue({ id: 42, cliente_id: 1, prendas: [] }),
-  listServices: vi.fn().mockResolvedValue([{ id:3,nombre:'Lavado',precio_base:25,activo:true }]),
+  listServices: vi.fn().mockResolvedValue([{ id:3,nombre:'Lavado',precio_base:25,activo:true }, { id:4,nombre:'Lavado en seco',precio_base:35,activo:true }]),
 }))
 describe('NewOrderPage', () => {
   it('requiere cliente, permite seleccionarlo y agregar varias prendas', async () => {
@@ -25,7 +25,7 @@ describe('NewOrderPage', () => {
     await user.click(screen.getByRole('button',{name:/siguiente/i})) // -> paso 2 (prendas)
     await user.selectOptions(screen.getByLabelText(/tipo de prenda/i), '2')
     await user.click(screen.getByRole('button',{name:/siguiente/i})) // -> paso 3 (servicios)
-    await user.click(screen.getByRole('checkbox', { name: /lavado/i }))
+    await user.click(screen.getByRole('checkbox', { name: 'Lavado' }))
     await user.click(screen.getByRole('button',{name:/siguiente/i})) // -> paso 4 (fecha)
     await user.type(screen.getByLabelText(/fecha estimada de entrega/i), '2026-09-01')
     await user.click(screen.getByRole('button',{name:/siguiente/i})) // -> paso 5 (resumen)
@@ -39,5 +39,36 @@ describe('NewOrderPage', () => {
       [expect.objectContaining({ tipo_prenda_id: 2, cantidad: 1, servicio_ids: [3] })],
     )
     expect(await screen.findByText('Pedido creado correctamente')).toBeInTheDocument()
+  })
+
+  it('requiere al menos un servicio para cada prenda', async () => {
+    const user = userEvent.setup()
+    render(<NewOrderPage />)
+    await user.click(await screen.findByRole('button', { name: /ana martínez/i }))
+    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    await user.selectOptions(screen.getByLabelText(/tipo de prenda/i), '2')
+    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    expect(screen.getByText('Selecciona al menos un servicio para cada prenda.')).toBeInTheDocument()
+  })
+
+  it('bloquea lavado y lavado en seco como servicios simultáneos', async () => {
+    const user = userEvent.setup()
+    render(<NewOrderPage />)
+    await user.click(await screen.findByRole('button', { name: /ana martínez/i }))
+    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    await user.selectOptions(screen.getByLabelText(/tipo de prenda/i), '2')
+    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+
+    const lavado = screen.getByRole('checkbox', { name: 'Lavado' })
+    const lavadoEnSeco = screen.getByRole('checkbox', { name: 'Lavado en seco' })
+    await user.click(lavado)
+    expect(lavadoEnSeco).toBeDisabled()
+    expect(screen.getByText(/no se pueden aplicar juntos por seguridad/i)).toBeInTheDocument()
+
+    await user.click(lavado)
+    expect(lavadoEnSeco).not.toBeDisabled()
+    await user.click(lavadoEnSeco)
+    expect(lavado).toBeDisabled()
   })
 })
