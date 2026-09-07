@@ -18,6 +18,7 @@ export async function createOrder(clienteId: number, fechaEntregaEstimada: strin
       cantidad: item.cantidad,
       ...(item.color.trim() && { color: item.color.trim() }),
       ...(item.descripcion.trim() && { descripcion: item.descripcion.trim() }),
+      servicios: item.servicio_ids.map((servicio_id) => ({ servicio_id })),
     })),
   })).data
 }
