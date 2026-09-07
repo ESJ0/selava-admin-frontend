@@ -1,5 +1,17 @@
 # React + TypeScript + Vite
 
+## Desarrollo local
+
+Requiere Node.js y npm. El backend debe estar disponible en `http://localhost:8080`.
+
+```powershell
+Copy-Item .env.example .env
+npm ci
+npm run dev
+```
+
+Con `VITE_API_URL=/api`, Vite redirige las llamadas API al backend local. La aplicación queda disponible en `http://localhost:5173`. Las credenciales se configuran mediante el seed del backend; no se guardan contraseñas en este repositorio. Detén el servidor con `Ctrl+C`.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:
