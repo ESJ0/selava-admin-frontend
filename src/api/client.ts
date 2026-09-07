@@ -7,8 +7,8 @@ api.interceptors.response.use(undefined, (error) => { if (error.response?.status
 
 export function errorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as { error?: string; errores?: Record<string, string> } | undefined
-    return data?.error ?? (data?.errores ? Object.values(data.errores).join('. ') : undefined) ?? 'No fue posible conectar con el servidor.'
+    const data = error.response?.data as { error?: string; errores?: Array<{ field: string; message: string }> } | undefined
+    return data?.error ?? data?.errores?.map(({ field, message }) => `${field}: ${message}`).join('. ') ?? 'No fue posible conectar con el servidor.'
   }
   return 'Ocurrió un error inesperado.'
 }
