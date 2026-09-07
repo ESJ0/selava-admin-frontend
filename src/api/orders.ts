@@ -4,10 +4,10 @@ import type { Cliente, EstadoPedido, HistorialEstado, Pedido, PedidoDetalle, Pre
 export async function listClients() { return (await api.get<Cliente[]>('/clientes/')).data }
 export async function listGarmentTypes() { return (await api.get<TipoPrenda[]>('/tipos-prenda/')).data }
 export async function listServices() { return (await api.get<Servicio[]>('/servicios/')).data }
-export async function getOrder(id: number) { return (await api.get<PedidoDetalle>(`/pedidos/${id}`)).data }
-export async function getOrderHistory(id: number) { return (await api.get<HistorialEstado[]>(`/pedidos/${id}/historial-estados`)).data }
+export async function getOrder(id: number, signal?: AbortSignal) { return (await api.get<PedidoDetalle | null>(`/pedidos/${id}`, { signal })).data }
+export async function getOrderHistory(id: number, signal?: AbortSignal) { return (await api.get<HistorialEstado[]>(`/pedidos/${id}/historial-estados`, { signal })).data }
 export async function cancelOrder(id: number) { return (await api.put(`/pedidos/${id}/cancelar`)).data }
-export async function listOrderStatuses() { return (await api.get<EstadoPedido[]>('/estados-pedido/')).data }
+export async function listOrderStatuses(signal?: AbortSignal) { return (await api.get<EstadoPedido[]>('/estados-pedido/', { signal })).data }
 export async function updateOrderStatus(id: number, estadoId: number, observaciones?: string) {
   return (await api.put(`/pedidos/${id}/estado`, {
     estado_id: estadoId,
@@ -17,7 +17,7 @@ export async function updateOrderStatus(id: number, estadoId: number, observacio
 
 // createOrder crea el pedido y todas sus prendas en una sola llamada:
 // el backend lo procesa como una transacción atómica (POST /api/pedidos),
-// no existe un endpoint separado para registrar prendas después.
+// también existe POST /api/pedidos/{id}/prendas para pedidos existentes.
 export async function createOrder(clienteId: number, fechaEntregaEstimada: string, observaciones: string | undefined, garments: PrendaDraft[]) {
   return (await api.post<Pedido>('/pedidos/', {
     cliente_id: clienteId,
