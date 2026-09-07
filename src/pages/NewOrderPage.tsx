@@ -101,7 +101,7 @@ export function NewOrderPage() {
     <h1>Pedido creado correctamente</h1>
     <p>Número de pedido</p>
     <strong>#SLV-{String(createdId).padStart(4, '0')}</strong>
-    <button className="primary" onClick={resetForNewOrder}>Crear otro pedido</button>
+    <div className="success-actions"><a className="primary" href={`/pedidos/${createdId}`}>Ver detalle</a><button className="secondary" onClick={resetForNewOrder}>Crear otro pedido</button></div>
   </section>
 
   return <section className="order-page">
@@ -164,7 +164,7 @@ export function NewOrderPage() {
         </div>)}
         <div className="delivery-summary"><small>Entrega estimada</small><b>{new Date(`${deliveryDate}T12:00:00`).toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
         <label className="observations-field">Observaciones del pedido<input value={observations} onChange={(event) => setObservations(event.target.value)} placeholder="Instrucciones especiales…" /></label>
-        <div className="order-total"><span>Total</span><strong>Q{total.toFixed(2)}</strong></div>
+        <div className="order-total"><span>Total estimado</span><strong>Q{total.toFixed(2)}</strong></div>
       </>}
 
       {error && <div className="alert error">{error}</div>}
