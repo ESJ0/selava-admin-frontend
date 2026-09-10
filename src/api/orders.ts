@@ -23,12 +23,12 @@ export async function createOrder(clienteId: number, fechaEntregaEstimada: strin
     cliente_id: clienteId,
     fecha_entrega_estimada: new Date(`${fechaEntregaEstimada}T12:00:00`).toISOString(),
     ...(observaciones?.trim() && { observaciones: observaciones.trim() }),
-    prendas: garments.map((item) => ({
-      tipo_prenda_id: item.tipo_prenda_id,
-      cantidad: item.cantidad,
-      servicios: item.servicio_ids.map(servicioId => ({ servicio_id: servicioId })),
-      ...(item.color.trim() && { color: item.color.trim() }),
-      ...(item.descripcion.trim() && { descripcion: item.descripcion.trim() }),
-    })),
+    prendas: garments.flatMap((garment) => garment.detalles.map((detail) => ({
+      tipo_prenda_id: garment.tipo_prenda_id,
+      cantidad: detail.cantidad,
+      servicios: detail.servicio_ids.map(servicioId => ({ servicio_id: servicioId })),
+      ...(detail.color.trim() && { color: detail.color.trim() }),
+      ...(detail.descripcion.trim() && { descripcion: detail.descripcion.trim() }),
+    }))),
   })).data
 }

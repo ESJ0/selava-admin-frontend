@@ -6,7 +6,14 @@ export interface Cliente extends Entity { apellido: string; telefono: string; em
 export interface PrendaServicioCreada { id: number; prenda_id: number; servicio_id: number; precio_aplicado: number; servicio?: Servicio }
 export interface PrendaCreada { id: number; pedido_id: number; tipo_prenda_id: number; cantidad: number; color?: string; descripcion?: string; servicios: PrendaServicioCreada[] }
 export interface Pedido { id: number; cliente_id: number; estado_actual_id: number; total: number; prendas: PrendaCreada[] }
-export interface PrendaDraft { tipo_prenda_id: number | ''; cantidad: number; color: string; descripcion: string; servicio_ids: number[] }
+export interface PrendaDetalleDraft { cantidad: number; color: string; descripcion: string; servicio_ids: number[] }
+export interface PrendaDraft {
+  tipo_prenda_id: number | ''
+  cantidad: number | ''
+  aplicar_servicio_comun: boolean
+  servicio_ids_comunes: number[]
+  detalles: PrendaDetalleDraft[]
+}
 export type CatalogKind = 'servicios' | 'tipos-prenda' | 'metodos-pago'
 
 export interface EstadoPedido {
