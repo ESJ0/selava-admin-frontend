@@ -20,7 +20,7 @@ function AdminApp() {
     <Route path="/pedidos" element={<OrderLookupPage />} />
     <Route path="/pedidos/:pedidoId" element={<OrderDetailPage />} />
     <Route path="/operario/pedidos/:pedidoId" element={<OrderDetailPage operatorMode />} />
-    <Route path="*" element={<Navigate to={roleId === 3 ? '/pedidos' : '/servicios'} replace />} />
+    <Route path="*" element={<Navigate to={roleId === 3 ? '/pedidos' : '/tipos-prenda'} replace />} />
   </Routes></Layout>
 }
 
