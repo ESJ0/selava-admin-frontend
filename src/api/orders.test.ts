@@ -19,12 +19,24 @@ describe('contrato API de pedidos', () => {
     await updateOrderStatus(42, 3, '  Lista  '); await cancelOrder(42)
     expect(put.mock.calls).toEqual([['/pedidos/42/estado', { estado_id: 3, observaciones: 'Lista' }], ['/pedidos/42/cancelar']])
   })
-  it('crea prendas con IDs de servicio y deja precios y total al backend', async () => {
+  it('convierte cada detalle en una prenda con servicios y deja precios y total al backend', async () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { id: 42 } })
-    await createOrder(1, '2030-01-01', '', [{ tipo_prenda_id: 2, cantidad: 3, color: '', descripcion: '', servicio_ids: [7, 9] }])
+    await createOrder(1, '2030-01-01', '', [{
+      tipo_prenda_id: 2,
+      cantidad: 2,
+      aplicar_servicio_comun: false,
+      servicio_ids_comunes: [],
+      detalles: [
+        { cantidad: 3, color: 'Azul', descripcion: '', servicio_ids: [7, 9] },
+        { cantidad: 2, color: 'Blanco', descripcion: 'Delicadas', servicio_ids: [7] },
+      ],
+    }])
     const body = post.mock.calls[0][1] as Record<string, unknown>
     expect(body).not.toHaveProperty('total')
-    expect(body.prendas).toEqual([{ tipo_prenda_id: 2, cantidad: 3, servicios: [{ servicio_id: 7 }, { servicio_id: 9 }] }])
+    expect(body.prendas).toEqual([
+      { tipo_prenda_id: 2, cantidad: 3, color: 'Azul', servicios: [{ servicio_id: 7 }, { servicio_id: 9 }] },
+      { tipo_prenda_id: 2, cantidad: 2, color: 'Blanco', descripcion: 'Delicadas', servicios: [{ servicio_id: 7 }] },
+    ])
   })
   it('adjunta JWT en la solicitud real de Axios y limpia sesión ante 401', async () => {
     const previous = api.defaults.adapter

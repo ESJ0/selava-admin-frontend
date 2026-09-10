@@ -1,5 +1,5 @@
 import { Edit3, Plus, RefreshCw, Shirt } from 'lucide-react'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { createCatalog, deactivateCatalog, listCatalog, updateCatalog, type CatalogEntity, type CatalogPayload } from '../api/catalogs'
 import { errorMessage } from '../api/client'
 import { Modal } from '../components/Modal'
@@ -35,21 +35,36 @@ function CatalogForm({ kind, item, onClose, onSaved }: { kind: CatalogKind; item
 }
 
 export function CatalogPage({ kind }: { kind: CatalogKind }) {
-  const [items, setItems] = useState<CatalogEntity[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [success, setSuccess] = useState(''); const [editing, setEditing] = useState<CatalogEntity | null | undefined>()
+  const [items, setItems] = useState<CatalogEntity[]>([]); const [loadedKind, setLoadedKind] = useState<CatalogKind | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [success, setSuccess] = useState(''); const [editing, setEditing] = useState<CatalogEntity | null | undefined>(); const requestVersion = useRef(0)
   const isAdmin = useAuth((s) => s.roleId) === 1
-  const load = useCallback(async () => { setLoading(true); setError(''); try { setItems(await listCatalog(kind)) } catch (e) { setError(errorMessage(e)) } finally { setLoading(false) } }, [kind])
-  useEffect(() => { listCatalog(kind).then(setItems).catch((e: unknown) => setError(errorMessage(e))).finally(() => setLoading(false)) }, [kind])
+  const load = useCallback(async () => {
+    const version = ++requestVersion.current
+    setLoading(true); setError('')
+    try {
+      const response = await listCatalog(kind)
+      if (version === requestVersion.current) { setItems(response); setLoadedKind(kind) }
+    } catch (e) {
+      if (version === requestVersion.current) { setItems([]); setLoadedKind(kind); setError(errorMessage(e)) }
+    } finally {
+      if (version === requestVersion.current) setLoading(false)
+    }
+  }, [kind])
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [load])
   async function toggle(item: CatalogEntity) {
     if (item.activo && !confirm(`¿Desactivar “${item.nombre}”?`)) return
     try { if (item.activo) await deactivateCatalog(kind, item.id); else await updateCatalog(kind, item.id, { activo: true }); setSuccess(`${item.nombre} fue ${item.activo ? 'desactivado' : 'activado'} correctamente.`); await load() } catch (e) { setError(errorMessage(e)) }
   }
   const meta = config[kind]
+  const catalogLoading = loading || loadedKind !== kind
   return <><section className="page-heading"><div><h1>{meta.title}</h1><p>{meta.subtitle}</p></div>{isAdmin && <button className="primary" onClick={() => setEditing(null)}><Plus size={19}/>{meta.button}</button>}</section>
     {success && <div className="alert success">{success}</div>}{error && <div className="alert error"><span>{error}{kind === 'metodos-pago' && ' El endpoint aún no está integrado en la rama develop del backend.'}</span><button onClick={load}><RefreshCw size={16}/> Reintentar</button></div>}
     <section className="catalog-card">
-      {loading ? <div className="state"><span className="spinner"/>Cargando {meta.title.toLowerCase()}…</div> : !items.length ? <div className="state"><Shirt size={40}/><b>Aún no hay {meta.title.toLowerCase()}</b><span>Crea el primer registro para comenzar.</span></div> :
+      {catalogLoading ? <div className="state"><span className="spinner"/>Cargando {meta.title.toLowerCase()}…</div> : !items.length ? <div className="state"><Shirt size={40}/><b>Aún no hay {meta.title.toLowerCase()}</b><span>Crea el primer registro para comenzar.</span></div> :
       <div className="table-scroll"><table><thead><tr><th>{kind === 'tipos-prenda' ? 'Tipo' : kind === 'servicios' ? 'Servicio' : 'Método'}</th>{kind !== 'metodos-pago' && <th>Descripción</th>}{kind === 'servicios' && <><th>Precio base</th><th>Tiempo est.</th></>}<th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>
-        <tbody>{items.map((item) => { const service = item as Servicio; const described = item as TipoPrenda; return <tr key={item.id}><td className="entity-name"><span className="entity-icon"><Shirt size={18}/></span>{item.nombre}</td>{kind !== 'metodos-pago' && <td>{described.descripcion || '—'}</td>}{kind === 'servicios' && <><td className="money">Q{service.precio_base.toFixed(2)}</td><td>{service.tiempo_estimado_horas ? `${service.tiempo_estimado_horas} h` : '—'}</td></>}<td><span className={`badge ${item.activo ? 'active' : ''}`}>{item.activo ? 'Activo' : 'Inactivo'}</span></td>{isAdmin && <td className="actions"><button onClick={() => setEditing(item)}><Edit3 size={16}/>Editar</button><button onClick={() => void toggle(item)}>{item.activo ? 'Desactivar' : 'Activar'}</button></td>}</tr> })}</tbody>
+        <tbody>{items.map((item) => { const service = item as Servicio; const described = item as TipoPrenda; return <tr key={item.id}><td className="entity-name"><span className="entity-icon"><Shirt size={18}/></span>{item.nombre}</td>{kind !== 'metodos-pago' && <td>{described.descripcion || '—'}</td>}{kind === 'servicios' && <><td className="money">Q{Number(service.precio_base ?? 0).toFixed(2)}</td><td>{service.tiempo_estimado_horas ? `${service.tiempo_estimado_horas} h` : '—'}</td></>}<td><span className={`badge ${item.activo ? 'active' : ''}`}>{item.activo ? 'Activo' : 'Inactivo'}</span></td>{isAdmin && <td className="actions"><button onClick={() => setEditing(item)}><Edit3 size={16}/>Editar</button><button onClick={() => void toggle(item)}>{item.activo ? 'Desactivar' : 'Activar'}</button></td>}</tr> })}</tbody>
       </table></div>}
     </section>
     {editing !== undefined && <Modal title={`${editing ? 'Editar' : 'Nuevo'} ${meta.singular}`} onClose={() => setEditing(undefined)}><CatalogForm kind={kind} item={editing} onClose={() => setEditing(undefined)} onSaved={(message) => { setEditing(undefined); setSuccess(message); void load() }}/></Modal>}

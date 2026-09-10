@@ -110,6 +110,6 @@ function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operat
       </aside>
     </div>
 
-    {cancelOpen && <Modal title="Cancelar pedido" onClose={() => !submitting && setCancelOpen(false)}><div className="confirm-modal"><span className="warning-icon"><AlertTriangle size={30}/></span><p>¿Estás seguro de cancelar el pedido <b>#SLV-{String(order.id).padStart(4, '0')}</b>? Esta acción cambiará su estado y no podrá deshacerse desde esta pantalla.</p><footer><button className="secondary" disabled={submitting} onClick={() => setCancelOpen(false)}>Volver</button><button className="danger-button solid" disabled={submitting} onClick={() => void confirmCancellation()}>{submitting ? 'Cancelando…' : 'Sí, cancelar pedido'}</button></footer></div></Modal>}
+    {cancelOpen && <Modal title="Cancelar pedido" onClose={() => !submitting && setCancelOpen(false)}><div className="confirm-modal"><span className="warning-icon"><AlertTriangle size={30}/></span><p>¿Estás seguro de cancelar el pedido <b>#SLV-{String(order.id).padStart(4, '0')}</b>? No se eliminará: quedará en estado Cancelado junto con su historial como constancia. Esta acción no podrá deshacerse desde esta pantalla.</p><footer><button className="secondary" disabled={submitting} onClick={() => setCancelOpen(false)}>Volver</button><button className="danger-button solid" disabled={submitting} onClick={() => void confirmCancellation()}>{submitting ? 'Cancelando…' : 'Sí, cancelar pedido'}</button></footer></div></Modal>}
   </section>
 }
