@@ -46,6 +46,7 @@ export interface PagoDetalle {
   referencia?: string
   fecha_pago: string
   metodo_pago: MetodoPago
+  usuario?: { id: number; nombre: string; apellido: string }
 }
 
 export interface SaldoPedido {
