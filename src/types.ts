@@ -39,10 +39,20 @@ export interface PrendaDetalle extends PrendaCreada {
 
 export interface PagoDetalle {
   id: number
+  pedido_id?: number
+  metodo_pago_id?: number
+  usuario_id?: number
   monto: number
   referencia?: string
   fecha_pago: string
   metodo_pago: MetodoPago
+}
+
+export interface SaldoPedido {
+  pedido_id: number
+  total: number
+  total_pagado: number
+  saldo_pendiente: number
 }
 
 export interface PedidoDetalle {
