@@ -6,6 +6,7 @@ import { NewOrderPage } from './pages/NewOrderPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
 import { OrderLookupPage } from './pages/OrderLookupPage'
 import { PaymentPage } from './pages/PaymentPage'
+import { SuppliesPage } from './pages/SuppliesPage'
 import { useAuth } from './store/auth'
 import './App.css'
 
@@ -17,6 +18,7 @@ function AdminApp() {
     <Route path="/servicios" element={<CatalogPage kind="servicios" />} />
     <Route path="/tipos-prenda" element={<CatalogPage kind="tipos-prenda" />} />
     <Route path="/metodos-pago" element={<CatalogPage kind="metodos-pago" />} />
+    <Route path="/insumos" element={roleId === 3 ? <Navigate to="/pedidos" replace /> : <SuppliesPage />} />
     <Route path="/pedidos/nuevo" element={<NewOrderPage />} />
     <Route path="/pedidos" element={<OrderLookupPage />} />
     <Route path="/pedidos/:pedidoId" element={<OrderDetailPage />} />

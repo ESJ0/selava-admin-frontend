@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, ClipboardList, CreditCard, LogOut, Menu, PackagePlus, Search, Shirt, Sparkles, X } from 'lucide-react'
+import { Bell, ChevronDown, ClipboardList, CreditCard, LogOut, Menu, Package, PackagePlus, Search, Shirt, Sparkles, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../store/auth'
@@ -7,6 +7,7 @@ const adminLinks = [
   { to: '/tipos-prenda', label: 'Tipos de prenda', icon: Shirt },
   { to: '/servicios', label: 'Tipos de servicio', icon: Sparkles },
   { to: '/metodos-pago', label: 'Métodos de pago', icon: CreditCard },
+  { to: '/insumos', label: 'Insumos', icon: Package },
 ]
 export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation()

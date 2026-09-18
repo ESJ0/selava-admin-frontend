@@ -2,6 +2,14 @@ export interface Entity { id: number; nombre: string; activo: boolean }
 export interface Servicio extends Entity { descripcion?: string; precio_base: number; tiempo_estimado_horas?: number }
 export interface TipoPrenda extends Entity { descripcion?: string }
 export interface MetodoPago extends Entity {}
+export interface Insumo extends Entity {
+  descripcion?: string
+  unidad_medida: string
+  stock_actual: number
+  stock_minimo: number
+  created_at?: string
+  updated_at?: string
+}
 export interface Cliente extends Entity { apellido: string; telefono: string; email?: string; direccion?: string }
 export interface PrendaServicioCreada { id: number; prenda_id: number; servicio_id: number; precio_aplicado: number; servicio?: Servicio }
 export interface PrendaCreada { id: number; pedido_id: number; tipo_prenda_id: number; cantidad: number; color?: string; descripcion?: string; servicios: PrendaServicioCreada[] }
