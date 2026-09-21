@@ -4,9 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InventoryPage } from './InventoryPage'
 import { useAuth } from '../store/auth'
 
-const mocks = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), update: vi.fn(), deactivate: vi.fn(), movement: vi.fn() }))
+const mocks = vi.hoisted(() => ({ list: vi.fn(), lowStock: vi.fn(), create: vi.fn(), update: vi.fn(), deactivate: vi.fn(), movement: vi.fn() }))
 vi.mock('../api/inventory', () => ({
   listInputs: mocks.list,
+  listLowStockInputs: mocks.lowStock,
   createInput: mocks.create,
   updateInput: mocks.update,
   deactivateInput: mocks.deactivate,
@@ -20,6 +21,7 @@ describe('InventoryPage', () => {
     vi.clearAllMocks()
     useAuth.setState({ roleId: 1 })
     mocks.list.mockResolvedValue([input])
+    mocks.lowStock.mockResolvedValue([])
     mocks.create.mockResolvedValue(input)
     mocks.update.mockResolvedValue(input)
     mocks.deactivate.mockResolvedValue(undefined)
@@ -121,5 +123,16 @@ describe('InventoryPage', () => {
     expect(await screen.findByRole('button', { name: 'Registrar movimiento' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /nuevo insumo/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
+  })
+
+  it('muestra el indicador accesible usando la alerta devuelta por backend', async () => {
+    mocks.lowStock.mockResolvedValue([input])
+    render(<InventoryPage/>)
+    expect(await screen.findByText('Stock bajo')).toBeInTheDocument()
+    const row = screen.getByText('Detergente').closest('tr')
+    expect(row).toHaveClass('low-stock-row')
+    expect(within(row as HTMLElement).getByText('10 L')).toBeInTheDocument()
+    expect(within(row as HTMLElement).getByText('5 L')).toBeInTheDocument()
+    expect(mocks.lowStock).toHaveBeenCalledWith(expect.any(AbortSignal))
   })
 })

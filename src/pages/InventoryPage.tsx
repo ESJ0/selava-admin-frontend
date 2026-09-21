@@ -1,6 +1,6 @@
-import { ArrowDownToLine, Boxes, Edit3, PackageOpen, Plus, RefreshCw } from 'lucide-react'
+import { AlertTriangle, ArrowDownToLine, Boxes, Edit3, PackageOpen, Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { createInput, deactivateInput, listInputs, registerInventoryMovement, updateInput } from '../api/inventory'
+import { createInput, deactivateInput, listInputs, listLowStockInputs, registerInventoryMovement, updateInput } from '../api/inventory'
 import { errorMessage } from '../api/client'
 import { Modal } from '../components/Modal'
 import { useAuth } from '../store/auth'
@@ -122,6 +122,7 @@ export function InventoryPage() {
   const canManage = roleId === 1 || roleId === 2
   const canRegisterMovement = roleId === 1 || roleId === 3
   const [items, setItems] = useState<Insumo[]>([])
+  const [lowStockIds, setLowStockIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -136,10 +137,13 @@ export function InventoryPage() {
     setLoading(true)
     setError('')
     try {
-      const response = await listInputs(controller.signal)
-      if (!controller.signal.aborted) setItems(response ?? [])
+      const [response, lowStock] = await Promise.all([listInputs(controller.signal), listLowStockInputs(controller.signal)])
+      if (!controller.signal.aborted) {
+        setItems(response ?? [])
+        setLowStockIds(new Set((lowStock ?? []).map((item) => item.id)))
+      }
     } catch (cause) {
-      if (!controller.signal.aborted) { setItems([]); setError(errorMessage(cause)) }
+      if (!controller.signal.aborted) { setItems([]); setLowStockIds(new Set()); setError(errorMessage(cause)) }
     } finally {
       if (!controller.signal.aborted) setLoading(false)
     }
@@ -169,7 +173,10 @@ export function InventoryPage() {
     {success && <div className="alert success" role="status">{success}</div>}
     {error && <div className="alert error" role="alert"><span>{error}</span><button onClick={() => void load()}><RefreshCw size={16}/>Reintentar</button></div>}
     <section className="catalog-card">
-      {loading ? <div className="state" role="status"><span className="spinner"/>Cargando insumos…</div> : !items.length ? <div className="state"><PackageOpen size={40}/><b>Aún no hay insumos</b><span>Crea el primer registro para comenzar.</span></div> : <div className="table-scroll"><table><thead><tr><th>Insumo</th><th>Unidad</th><th>Stock actual</th><th>Stock mínimo</th><th>Estado</th>{canManage && <th>Acciones</th>}</tr></thead><tbody>{items.map((item) => <tr key={item.id}><td className="entity-name"><span className="entity-icon"><Boxes size={18}/></span><span>{item.nombre}{item.descripcion && <small className="unit-price">{item.descripcion}</small>}</span></td><td>{item.unidad_medida}</td><td>{item.stock_actual}</td><td>{item.stock_minimo}</td><td><span className={`badge ${item.activo ? 'active' : ''}`}>{item.activo ? 'Activo' : 'Inactivo'}</span></td>{canManage && <td className="actions"><button onClick={() => setEditing(item)}><Edit3 size={16}/>Editar</button><button onClick={() => void toggle(item)}>{item.activo ? 'Desactivar' : 'Activar'}</button></td>}</tr>)}</tbody></table></div>}
+      {loading ? <div className="state" role="status"><span className="spinner"/>Cargando insumos…</div> : !items.length ? <div className="state"><PackageOpen size={40}/><b>Aún no hay insumos</b><span>Crea el primer registro para comenzar.</span></div> : <div className="table-scroll"><table><thead><tr><th>Insumo</th><th>Unidad</th><th>Stock actual</th><th>Stock mínimo</th><th>Estado</th>{canManage && <th>Acciones</th>}</tr></thead><tbody>{items.map((item) => {
+        const hasLowStock = lowStockIds.has(item.id)
+        return <tr key={item.id} className={hasLowStock ? 'low-stock-row' : undefined}><td className="entity-name"><span className="entity-icon"><Boxes size={18}/></span><span>{item.nombre}{item.descripcion && <small className="unit-price">{item.descripcion}</small>}</span></td><td>{item.unidad_medida}</td><td><div className="stock-cell"><strong>{item.stock_actual} {item.unidad_medida}</strong>{hasLowStock && <span className="badge low-stock"><AlertTriangle size={15} aria-hidden="true"/>Stock bajo</span>}</div></td><td>{item.stock_minimo} {item.unidad_medida}</td><td><span className={`badge ${item.activo ? 'active' : ''}`}>{item.activo ? 'Activo' : 'Inactivo'}</span></td>{canManage && <td className="actions"><button onClick={() => setEditing(item)}><Edit3 size={16}/>Editar</button><button onClick={() => void toggle(item)}>{item.activo ? 'Desactivar' : 'Activar'}</button></td>}</tr>
+      })}</tbody></table></div>}
     </section>
     {editing !== undefined && <Modal title={`${editing ? 'Editar' : 'Nuevo'} insumo`} onClose={() => setEditing(undefined)}><InventoryForm item={editing} onClose={() => setEditing(undefined)} onSaved={(message) => { setEditing(undefined); setSuccess(message); void load() }}/></Modal>}
     {moving && <Modal title="Registrar movimiento" onClose={() => setMoving(false)}><MovementForm items={items.filter((item) => item.activo)} onClose={() => setMoving(false)} onSaved={(message) => { setMoving(false); setSuccess(message); void load() }}/></Modal>}

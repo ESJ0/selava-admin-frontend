@@ -5,6 +5,10 @@ export async function listInputs(signal?: AbortSignal) {
   return (await api.get<Insumo[]>('/insumos/', { signal })).data
 }
 
+export async function listLowStockInputs(signal?: AbortSignal) {
+  return (await api.get<Insumo[]>('/insumos/alertas/stock-minimo', { signal })).data
+}
+
 export async function createInput(payload: InsumoCreatePayload) {
   return (await api.post<Insumo>('/insumos/', payload)).data
 }
