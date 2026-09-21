@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { CatalogPage } from './pages/CatalogPage'
+import { ClientsPage } from './pages/ClientsPage'
 import { LoginPage } from './pages/LoginPage'
 import { InventoryPage } from './pages/InventoryPage'
 import { NewOrderPage } from './pages/NewOrderPage'
@@ -15,6 +16,7 @@ function AdminApp() {
   if (!token) return <Navigate to="/login" replace />
   return <Layout><Routes>
     <Route path="/servicios" element={<CatalogPage kind="servicios" />} />
+    <Route path="/clientes" element={<ClientsPage />} />
     <Route path="/tipos-prenda" element={<CatalogPage kind="tipos-prenda" />} />
     <Route path="/metodos-pago" element={<CatalogPage kind="metodos-pago" />} />
     <Route path="/insumos" element={<InventoryPage />} />
