@@ -114,10 +114,10 @@ export function PaymentPanel({ orderId, onPaymentSaved }: { orderId: number; onP
 
       {balance && balance.saldo_pendiente > 0 && <form className="payment-form" onSubmit={submit}>
         <div className="form-grid">
-          <label>Monto *<input aria-label="Monto" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label>
-          <label>Método de pago *<select aria-label="Método de pago" value={methodId} onChange={(event) => setMethodId(event.target.value)} required><option value="">Seleccionar método</option>{methods.map((method) => <option key={method.id} value={method.id}>{method.nombre}</option>)}</select></label>
+          <label>Monto *<input name="amount" aria-label="Monto" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label>
+          <label>Método de pago *<select name="payment_method" aria-label="Método de pago" value={methodId} onChange={(event) => setMethodId(event.target.value)} required><option value="">Seleccionar método</option>{methods.map((method) => <option key={method.id} value={method.id}>{method.nombre}</option>)}</select></label>
         </div>
-        <label>Referencia<input aria-label="Referencia" value={reference} maxLength={100} onChange={(event) => setReference(event.target.value)} placeholder="Opcional" /></label>
+        <label>Referencia<input name="reference" aria-label="Referencia" value={reference} maxLength={100} onChange={(event) => setReference(event.target.value)} placeholder="Opcional" /></label>
         <button className="primary wide" disabled={saving}>{saving ? 'Registrando…' : 'Registrar pago'}</button>
       </form>}
       {balance?.saldo_pendiente === 0 && <div className="paid-state"><CheckCircle2 size={20}/>Pedido pagado en su totalidad.</div>}
