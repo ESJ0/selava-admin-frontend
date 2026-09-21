@@ -2,6 +2,8 @@ import { ChevronLeft, ChevronRight, Eye, Plus, RefreshCw, Search, UserRound } fr
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listClients } from '../api/clients'
+import { ClientForm } from '../components/ClientForm'
+import { Modal } from '../components/Modal'
 import type { Cliente } from '../types'
 
 type StatusFilter = 'todos' | 'activo' | 'inactivo'
@@ -18,6 +20,8 @@ export function ClientsPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<StatusFilter>('todos')
   const [page, setPage] = useState(1)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [success, setSuccess] = useState('')
   const request = useRef<AbortController | null>(null)
 
   const load = useCallback(async () => {
@@ -75,8 +79,10 @@ export function ClientsPage() {
   return <section className="clients-page">
     <header className="page-heading clients-heading">
       <div><h1>Clientes</h1><p>Gestiona la información de tus clientes.</p></div>
-      <button className="primary client-create-button" type="button"><Plus size={19}/>Nuevo cliente</button>
+      <button className="primary client-create-button" type="button" onClick={() => { setSuccess(''); setCreateOpen(true) }}><Plus size={19}/>Nuevo cliente</button>
     </header>
+
+    {success && <div className="alert success" role="status">{success}</div>}
 
     <div className="clients-toolbar">
       <label className="clients-search"><Search size={21}/><span className="sr-only">Buscar clientes</span><input value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Buscar por nombre, teléfono o NIT..." /></label>
@@ -100,5 +106,6 @@ export function ClientsPage() {
               </tr>)}</tbody></table></div>}
       {!loading && !loadError && clients.length > 0 && <footer className="clients-pagination"><span>{filtered.length} {filtered.length === 1 ? 'cliente' : 'clientes'}</span><div><button type="button" aria-label="Página anterior" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={18}/></button><span>{currentPage} / {totalPages}</span><button type="button" aria-label="Página siguiente" disabled={currentPage === totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}><ChevronRight size={18}/></button></div></footer>}
     </section>
+    {createOpen && <Modal title="Registrar cliente" onClose={() => setCreateOpen(false)}><ClientForm onClose={() => setCreateOpen(false)} onSaved={() => { setCreateOpen(false); setSuccess('Cliente registrado correctamente.'); void load() }}/></Modal>}
   </section>
 }
