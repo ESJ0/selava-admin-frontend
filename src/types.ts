@@ -90,6 +90,26 @@ export interface InsumoCreatePayload {
 
 export type InsumoUpdatePayload = Partial<InsumoCreatePayload & Pick<Insumo, 'activo'>>
 
+export type TipoMovimientoInventario = 'entrada' | 'salida'
+
+export interface MovimientoInventario {
+  id: number
+  insumo_id: number
+  usuario_id: number
+  tipo_movimiento: TipoMovimientoInventario
+  cantidad: number
+  motivo?: string
+  fecha_movimiento: string
+  created_at: string
+}
+
+export interface MovimientoInventarioCreatePayload {
+  insumo_id: number
+  tipo_movimiento: TipoMovimientoInventario
+  cantidad: number
+  motivo?: string
+}
+
 export interface PedidoDetalle {
   id: number
   cliente_id: number

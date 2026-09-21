@@ -1,15 +1,17 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InventoryPage } from './InventoryPage'
 import { useAuth } from '../store/auth'
 
-const mocks = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), update: vi.fn(), deactivate: vi.fn() }))
+const mocks = vi.hoisted(() => ({ list: vi.fn(), lowStock: vi.fn(), create: vi.fn(), update: vi.fn(), deactivate: vi.fn(), movement: vi.fn() }))
 vi.mock('../api/inventory', () => ({
   listInputs: mocks.list,
+  listLowStockInputs: mocks.lowStock,
   createInput: mocks.create,
   updateInput: mocks.update,
   deactivateInput: mocks.deactivate,
+  registerInventoryMovement: mocks.movement,
 }))
 
 const input = { id: 1, nombre: 'Detergente', descripcion: 'Líquido', unidad_medida: 'L', stock_actual: 10, stock_minimo: 5, activo: true, created_at: '2026-09-21T10:00:00Z', updated_at: '2026-09-21T10:00:00Z' }
@@ -19,9 +21,11 @@ describe('InventoryPage', () => {
     vi.clearAllMocks()
     useAuth.setState({ roleId: 1 })
     mocks.list.mockResolvedValue([input])
+    mocks.lowStock.mockResolvedValue([])
     mocks.create.mockResolvedValue(input)
     mocks.update.mockResolvedValue(input)
     mocks.deactivate.mockResolvedValue(undefined)
+    mocks.movement.mockResolvedValue({ id: 1, insumo_id: 1, usuario_id: 1, tipo_movimiento: 'salida', cantidad: 4 })
   })
 
   it('lista insumos con sus stocks y unidad', async () => {
@@ -68,5 +72,67 @@ describe('InventoryPage', () => {
     fireEvent.submit(screen.getByRole('form', { name: 'Formulario de insumo' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('no puede ser negativo')
     expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('registra una salida con el contrato real y refresca el stock', async () => {
+    const user = userEvent.setup()
+    render(<InventoryPage/>)
+    await user.click(await screen.findByRole('button', { name: 'Registrar movimiento' }))
+    const form = screen.getByRole('form', { name: 'Formulario de movimiento de inventario' })
+    await user.selectOptions(within(form).getByLabelText('Insumo'), '1')
+    expect(within(form).getByText('10 L')).toBeInTheDocument()
+    await user.selectOptions(within(form).getByLabelText('Tipo de movimiento'), 'salida')
+    await user.type(within(form).getByLabelText('Cantidad'), '4')
+    await user.type(within(form).getByLabelText('Motivo u observación'), ' Uso diario ')
+    await user.click(within(form).getByRole('button', { name: 'Registrar movimiento' }))
+    await waitFor(() => expect(mocks.movement).toHaveBeenCalledWith({ insumo_id: 1, tipo_movimiento: 'salida', cantidad: 4, motivo: 'Uso diario' }))
+    expect(mocks.list).toHaveBeenCalledTimes(2)
+    expect(await screen.findByText('Salida registrada correctamente.')).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Formulario de movimiento de inventario' })).not.toBeInTheDocument()
+  })
+
+  it('impide una salida mayor al stock antes de llamar la API', async () => {
+    const user = userEvent.setup()
+    render(<InventoryPage/>)
+    await user.click(await screen.findByRole('button', { name: 'Registrar movimiento' }))
+    const form = screen.getByRole('form', { name: 'Formulario de movimiento de inventario' })
+    await user.selectOptions(within(form).getByLabelText('Insumo'), '1')
+    await user.selectOptions(within(form).getByLabelText('Tipo de movimiento'), 'salida')
+    await user.type(within(form).getByLabelText('Cantidad'), '11')
+    fireEvent.submit(form)
+    expect(await within(form).findByRole('alert')).toHaveTextContent('supera el stock disponible')
+    expect(mocks.movement).not.toHaveBeenCalled()
+  })
+
+  it('muestra el error del backend cuando rechaza el movimiento', async () => {
+    const user = userEvent.setup()
+    mocks.movement.mockRejectedValueOnce({ isAxiosError: true, response: { status: 409, data: { error: 'stock insuficiente para registrar la salida' } } })
+    render(<InventoryPage/>)
+    await user.click(await screen.findByRole('button', { name: 'Registrar movimiento' }))
+    const form = screen.getByRole('form', { name: 'Formulario de movimiento de inventario' })
+    await user.selectOptions(within(form).getByLabelText('Insumo'), '1')
+    await user.selectOptions(within(form).getByLabelText('Tipo de movimiento'), 'salida')
+    await user.type(within(form).getByLabelText('Cantidad'), '4')
+    await user.click(within(form).getByRole('button', { name: 'Registrar movimiento' }))
+    expect(await within(form).findByRole('alert')).toHaveTextContent('stock insuficiente')
+  })
+
+  it('permite movimientos al Operario sin mostrar acciones de catálogo', async () => {
+    useAuth.setState({ roleId: 3 })
+    render(<InventoryPage/>)
+    expect(await screen.findByRole('button', { name: 'Registrar movimiento' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /nuevo insumo/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
+  })
+
+  it('muestra el indicador accesible usando la alerta devuelta por backend', async () => {
+    mocks.lowStock.mockResolvedValue([input])
+    render(<InventoryPage/>)
+    expect(await screen.findByText('Stock bajo')).toBeInTheDocument()
+    const row = screen.getByText('Detergente').closest('tr')
+    expect(row).toHaveClass('low-stock-row')
+    expect(within(row as HTMLElement).getByText('10 L')).toBeInTheDocument()
+    expect(within(row as HTMLElement).getByText('5 L')).toBeInTheDocument()
+    expect(mocks.lowStock).toHaveBeenCalledWith(expect.any(AbortSignal))
   })
 })
