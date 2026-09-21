@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { CatalogPage } from './pages/CatalogPage'
 import { LoginPage } from './pages/LoginPage'
+import { InventoryPage } from './pages/InventoryPage'
 import { NewOrderPage } from './pages/NewOrderPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
 import { OrderLookupPage } from './pages/OrderLookupPage'
@@ -16,6 +17,7 @@ function AdminApp() {
     <Route path="/servicios" element={<CatalogPage kind="servicios" />} />
     <Route path="/tipos-prenda" element={<CatalogPage kind="tipos-prenda" />} />
     <Route path="/metodos-pago" element={<CatalogPage kind="metodos-pago" />} />
+    <Route path="/insumos" element={<InventoryPage />} />
     <Route path="/pedidos/nuevo" element={<NewOrderPage />} />
     <Route path="/pedidos" element={<OrderLookupPage />} />
     <Route path="/pedidos/:pedidoId" element={<OrderDetailPage />} />

@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, ClipboardList, CreditCard, LogOut, Menu, PackagePlus, Search, Shirt, Sparkles, X } from 'lucide-react'
+import { Bell, Boxes, ChevronDown, ClipboardList, CreditCard, LogOut, Menu, PackagePlus, Search, Shirt, Sparkles, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../store/auth'
@@ -7,13 +7,14 @@ const adminLinks = [
   { to: '/tipos-prenda', label: 'Tipos de prenda', icon: Shirt },
   { to: '/servicios', label: 'Tipos de servicio', icon: Sparkles },
   { to: '/metodos-pago', label: 'Métodos de pago', icon: CreditCard },
+  { to: '/insumos', label: 'Insumos', icon: Boxes },
 ]
 export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation()
   const [open, setOpen] = useState(false)
   const [ordersOpen, setOrdersOpen] = useState(location.pathname.startsWith('/pedidos'))
   const logout = useAuth((state) => state.logout); const roleId = useAuth((state) => state.roleId)
-  const links = roleId === 3 ? [{ to: '/pedidos', label: 'Pedidos', icon: ClipboardList }] : adminLinks
+  const links = roleId === 3 ? [{ to: '/pedidos', label: 'Pedidos', icon: ClipboardList }, { to: '/insumos', label: 'Insumos', icon: Boxes }] : adminLinks
   const roleName = roleId === 3 ? 'Operario' : roleId === 2 ? 'Recepcionista' : 'Administrador'
   return <div className="app-shell">
     <header className="topbar"><button className="mobile-menu" onClick={() => setOpen(!open)} aria-label="Abrir menú">{open ? <X /> : <Menu />}</button>
