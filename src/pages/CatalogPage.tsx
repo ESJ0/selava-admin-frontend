@@ -60,7 +60,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const meta = config[kind]
   const catalogLoading = loading || loadedKind !== kind
   return <><section className="page-heading"><div><h1>{meta.title}</h1><p>{meta.subtitle}</p></div>{isAdmin && <button className="primary" onClick={() => setEditing(null)}><Plus size={19}/>{meta.button}</button>}</section>
-    {success && <div className="alert success">{success}</div>}{error && <div className="alert error"><span>{error}{kind === 'metodos-pago' && ' El endpoint aún no está integrado en la rama develop del backend.'}</span><button onClick={load}><RefreshCw size={16}/> Reintentar</button></div>}
+    {success && <div className="alert success">{success}</div>}{error && <div className="alert error"><span>{error}</span><button onClick={load}><RefreshCw size={16}/> Reintentar</button></div>}
     <section className="catalog-card">
       {catalogLoading ? <div className="state"><span className="spinner"/>Cargando {meta.title.toLowerCase()}…</div> : !items.length ? <div className="state"><Shirt size={40}/><b>Aún no hay {meta.title.toLowerCase()}</b><span>Crea el primer registro para comenzar.</span></div> :
       <div className="table-scroll"><table><thead><tr><th>{kind === 'tipos-prenda' ? 'Tipo' : kind === 'servicios' ? 'Servicio' : 'Método'}</th>{kind !== 'metodos-pago' && <th>Descripción</th>}{kind === 'servicios' && <><th>Precio base</th><th>Tiempo est.</th></>}<th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>

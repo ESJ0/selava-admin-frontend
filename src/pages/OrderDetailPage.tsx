@@ -5,6 +5,7 @@ import { cancelOrder, updateOrderStatus } from '../api/orders'
 import { errorMessage, httpStatus } from '../api/client'
 import { Modal } from '../components/Modal'
 import { OrderTimeline } from '../components/OrderTimeline'
+import { PaymentPanel } from '../components/PaymentPanel'
 import { useAuth } from '../store/auth'
 import { useOrderData } from '../hooks/useOrderData'
 
@@ -22,7 +23,7 @@ export function OrderDetailPage({ operatorMode = false }: { operatorMode?: boole
 
 function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operatorMode: boolean }) {
   const roleId = useAuth(state => state.roleId)
-  const { order, history, statuses, loading, error, setError, notFound, load, isActive } = useOrderData(orderId)
+  const { order, history, statuses, loading, error, setError, notFound, load, refresh, isActive } = useOrderData(orderId)
   const [notice, setNotice] = useState('')
   const [cancelOpen, setCancelOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -34,7 +35,6 @@ function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operat
   const canManage = roleId === 1 || roleId === 2
   const canCancel = canManage && order?.estado_actual.nombre === 'Recibido' && !submitting
   const showOperatorFlow = operatorMode || roleId === 3
-  const paid = order?.pagos.reduce((total, payment) => total + payment.monto, 0) ?? 0
 
   async function mutate(action: () => Promise<unknown>, message: string) {
     if (busy.current) return
@@ -106,7 +106,7 @@ function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operat
         {showOperatorFlow && <section className="detail-card state-update-card"><header><PackageCheck size={20}/><h2>Actualizar estado</h2></header>{availableStatuses.length ? <><p>Avanza el pedido al siguiente punto del proceso.</p><label>Nuevo estado<select aria-label="Nuevo estado" disabled={submitting} value={nextStatus} onChange={event => setNextStatus(event.target.value)}><option value="">Seleccionar estado</option>{availableStatuses.map(status => <option key={status.id} value={status.id}>{status.nombre}</option>)}</select></label><label>Observaciones<textarea value={observations} onChange={event => setObservations(event.target.value)} maxLength={255} placeholder="Agrega una nota opcional…"/></label><button className="primary wide" disabled={submitting || !nextStatus} onClick={() => void changeStatus()}>{submitting ? 'Actualizando…' : 'Actualizar estado'}</button></> : <div className="completed-state"><CheckCircle2 size={25}/><span>Este pedido ya no tiene estados pendientes.</span></div>}</section>}
 
         <section className="detail-card"><header><CalendarDays size={20}/><h2>Historial</h2></header><OrderTimeline history={history}/></section>
-        <section className="detail-card payment-summary"><header><ReceiptText size={20}/><h2>Pagos</h2></header>{order.pagos.map(payment => <div key={payment.id}><span>{payment.metodo_pago.nombre}<small className="unit-price">{date.format(new Date(payment.fecha_pago))}{payment.referencia ? ` · ${payment.referencia}` : ''}</small></span><b>{money.format(payment.monto)}</b></div>)}{!order.pagos.length && <p className="empty-block">Sin pagos registrados.</p>}<div><span>Pagado</span><b>{money.format(paid)}</b></div><div><span>Saldo pendiente</span><strong>{money.format(Math.max(order.total - paid, 0))}</strong></div></section>
+        {canManage && <PaymentPanel orderId={order.id} onPaymentSaved={refresh}/>}
       </aside>
     </div>
 

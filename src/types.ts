@@ -39,11 +39,56 @@ export interface PrendaDetalle extends PrendaCreada {
 
 export interface PagoDetalle {
   id: number
+  pedido_id: number
+  metodo_pago_id: number
+  usuario_id: number
   monto: number
   referencia?: string
   fecha_pago: string
   metodo_pago: MetodoPago
+  usuario?: PagoUsuario
 }
+
+export interface PagoUsuario {
+  id: number
+  nombre: string
+  apellido: string
+}
+
+export interface SaldoPedido {
+  pedido_id: number
+  total: number
+  total_pagado: number
+  saldo_pendiente: number
+}
+
+export interface PagoCreatePayload {
+  metodo_pago_id: number
+  monto: number
+  referencia?: string
+}
+
+export interface Insumo {
+  id: number
+  nombre: string
+  descripcion?: string
+  unidad_medida: string
+  stock_actual: number
+  stock_minimo: number
+  activo: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface InsumoCreatePayload {
+  nombre: string
+  descripcion?: string
+  unidad_medida: string
+  stock_actual: number
+  stock_minimo: number
+}
+
+export type InsumoUpdatePayload = Partial<InsumoCreatePayload & Pick<Insumo, 'activo'>>
 
 export interface PedidoDetalle {
   id: number
