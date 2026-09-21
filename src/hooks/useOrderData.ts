@@ -44,5 +44,5 @@ export function useOrderData(orderId: number) {
   }, [fetchData])
 
   const isActive = () => request.current !== null && !request.current.signal.aborted
-  return { order, history, statuses, loading, error, setError, notFound, load, isActive }
+  return { order, history, statuses, loading, error, setError, notFound, load, refresh: fetchData, isActive }
 }
