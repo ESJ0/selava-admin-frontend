@@ -16,12 +16,13 @@ describe('Layout', () => {
       'Tipos de prenda',
       'Tipos de servicio',
       'Métodos de pago',
+      'Insumos',
     ])
     const ordersButton = within(nav).getByRole('button', { name: 'Pedidos' })
     expect(ordersButton).toHaveAttribute('aria-expanded', 'false')
     await user.click(ordersButton)
     expect(ordersButton).toHaveAttribute('aria-expanded', 'true')
-    expect(within(nav).getAllByRole('link').slice(3).map((link) => link.textContent)).toEqual(['Consultar pedidos', 'Nuevo pedido'])
+    expect(within(nav).getAllByRole('link').slice(4).map((link) => link.textContent)).toEqual(['Consultar pedidos', 'Nuevo pedido'])
     expect(within(nav).getByRole('region', { name: 'Pedidos' })).toBeInTheDocument()
   })
 })

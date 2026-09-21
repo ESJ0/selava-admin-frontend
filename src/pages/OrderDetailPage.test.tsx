@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   statuses: vi.fn(),
   cancel: vi.fn(),
   updateStatus: vi.fn(),
+  balance: vi.fn(),
+  payments: vi.fn(),
+  methods: vi.fn(),
+  registerPayment: vi.fn(),
 }))
 
 vi.mock('../api/orders', () => ({
@@ -19,6 +23,13 @@ vi.mock('../api/orders', () => ({
   listOrderStatuses: mocks.statuses,
   cancelOrder: mocks.cancel,
   updateOrderStatus: mocks.updateStatus,
+}))
+
+vi.mock('../api/payments', () => ({
+  getOrderBalance: mocks.balance,
+  getOrderPayments: mocks.payments,
+  listPaymentMethods: mocks.methods,
+  registerOrderPayment: mocks.registerPayment,
 }))
 
 const detail = {
@@ -61,6 +72,10 @@ describe('OrderDetailPage', () => {
     ])
     mocks.cancel.mockResolvedValue({})
     mocks.updateStatus.mockResolvedValue({})
+    mocks.balance.mockResolvedValue({ pedido_id: 42, total: 50, total_pagado: 0, saldo_pendiente: 50 })
+    mocks.payments.mockResolvedValue([])
+    mocks.methods.mockResolvedValue([{ id: 1, nombre: 'Efectivo', activo: true }])
+    mocks.registerPayment.mockResolvedValue({})
   })
 
   it('muestra cliente, prendas, servicios, total e historial con responsable', async () => {
@@ -154,11 +169,13 @@ describe('OrderDetailPage', () => {
     expect(mocks.updateStatus).not.toHaveBeenCalled()
   })
 
-  it('muestra prendas vacías y pagos devueltos por el backend', async () => {
-    mocks.detail.mockResolvedValue({ ...detail, prendas: [], pagos: [{ id: 1, monto: 20, fecha_pago: '2026-09-05T10:00:00Z', referencia: 'ABC', metodo_pago: { id: 1, nombre: 'Efectivo', activo: true } }] })
+  it('muestra prendas vacías y pagos del endpoint dedicado', async () => {
+    mocks.detail.mockResolvedValue({ ...detail, prendas: [] })
+    mocks.payments.mockResolvedValue([{ id: 1, pedido_id: 42, metodo_pago_id: 1, usuario_id: 7, monto: 20, fecha_pago: '2026-09-05T10:00:00Z', referencia: 'ABC', metodo_pago: { id: 1, nombre: 'Efectivo', activo: true }, usuario: { id: 7, nombre: 'Luis', apellido: 'Pérez' } }])
     renderPage()
     expect(await screen.findByText('Este pedido no tiene prendas registradas.')).toBeInTheDocument()
-    expect(screen.getByText('Efectivo')).toBeInTheDocument()
+    expect((await screen.findAllByText('Efectivo')).length).toBeGreaterThan(0)
     expect(screen.getByText(/ABC/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Luis Pérez/).length).toBeGreaterThan(1)
   })
 })
