@@ -1,9 +1,10 @@
-import { Bell, Boxes, ChevronDown, ClipboardList, CreditCard, LogOut, Menu, PackagePlus, Search, Shirt, Sparkles, X } from 'lucide-react'
+import { Bell, Boxes, ChevronDown, ClipboardList, CreditCard, LogOut, Menu, PackagePlus, Search, Shirt, Sparkles, Users, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../store/auth'
 
 const adminLinks = [
+  { to: '/clientes', label: 'Clientes', icon: Users },
   { to: '/tipos-prenda', label: 'Tipos de prenda', icon: Shirt },
   { to: '/servicios', label: 'Tipos de servicio', icon: Sparkles },
   { to: '/metodos-pago', label: 'Métodos de pago', icon: CreditCard },

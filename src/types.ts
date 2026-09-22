@@ -2,7 +2,27 @@ export interface Entity { id: number; nombre: string; activo: boolean }
 export interface Servicio extends Entity { descripcion?: string; precio_base: number; tiempo_estimado_horas?: number }
 export interface TipoPrenda extends Entity { descripcion?: string }
 export interface MetodoPago extends Entity {}
-export interface Cliente extends Entity { apellido: string; telefono: string; email?: string; direccion?: string }
+export interface Cliente extends Entity {
+  apellido: string
+  telefono: string
+  email?: string
+  direccion?: string
+  created_at: string
+  updated_at: string
+  /** Campos opcionales preparados para cuando el backend los exponga. */
+  nit?: string
+  pedidos_count?: number
+  tiene_alerta?: boolean
+}
+export interface ClienteCreate {
+  nombre: string
+  apellido: string
+  telefono: string
+  email?: string
+  direccion?: string
+}
+export type ClienteUpdate = Partial<ClienteCreate & Pick<Cliente, 'activo'>>
+export type ClienteListResponse = Cliente[]
 export interface PrendaServicioCreada { id: number; prenda_id: number; servicio_id: number; precio_aplicado: number; servicio?: Servicio }
 export interface PrendaCreada { id: number; pedido_id: number; tipo_prenda_id: number; cantidad: number; color?: string; descripcion?: string; servicios: PrendaServicioCreada[] }
 export interface Pedido { id: number; cliente_id: number; estado_actual_id: number; total: number; prendas: PrendaCreada[] }

@@ -13,6 +13,7 @@ describe('Layout', () => {
     render(<MemoryRouter><Layout><div>Contenido</div></Layout></MemoryRouter>)
     const nav = screen.getByRole('navigation')
     expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Clientes',
       'Tipos de prenda',
       'Tipos de servicio',
       'Métodos de pago',
@@ -22,7 +23,7 @@ describe('Layout', () => {
     expect(ordersButton).toHaveAttribute('aria-expanded', 'false')
     await user.click(ordersButton)
     expect(ordersButton).toHaveAttribute('aria-expanded', 'true')
-    expect(within(nav).getAllByRole('link').slice(4).map((link) => link.textContent)).toEqual(['Consultar pedidos', 'Nuevo pedido'])
+    expect(within(nav).getAllByRole('link').slice(5).map((link) => link.textContent)).toEqual(['Consultar pedidos', 'Nuevo pedido'])
     expect(within(nav).getByRole('region', { name: 'Pedidos' })).toBeInTheDocument()
   })
 })
