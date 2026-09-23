@@ -2,15 +2,27 @@ export interface Entity { id: number; nombre: string; activo: boolean }
 export interface Servicio extends Entity { descripcion?: string; precio_base: number; tiempo_estimado_horas?: number }
 export interface TipoPrenda extends Entity { descripcion?: string }
 export interface MetodoPago extends Entity {}
-export interface Insumo extends Entity {
-  descripcion?: string
-  unidad_medida: string
-  stock_actual: number
-  stock_minimo: number
-  created_at?: string
-  updated_at?: string
+export interface Cliente extends Entity {
+  apellido: string
+  telefono: string
+  email?: string
+  direccion?: string
+  created_at: string
+  updated_at: string
+  /** Campos opcionales preparados para cuando el backend los exponga. */
+  nit?: string
+  pedidos_count?: number
+  tiene_alerta?: boolean
 }
-export interface Cliente extends Entity { apellido: string; telefono: string; email?: string; direccion?: string }
+export interface ClienteCreate {
+  nombre: string
+  apellido: string
+  telefono: string
+  email?: string
+  direccion?: string
+}
+export type ClienteUpdate = Partial<ClienteCreate & Pick<Cliente, 'activo'>>
+export type ClienteListResponse = Cliente[]
 export interface PrendaServicioCreada { id: number; prenda_id: number; servicio_id: number; precio_aplicado: number; servicio?: Servicio }
 export interface PrendaCreada { id: number; pedido_id: number; tipo_prenda_id: number; cantidad: number; color?: string; descripcion?: string; servicios: PrendaServicioCreada[] }
 export interface Pedido { id: number; cliente_id: number; estado_actual_id: number; total: number; prendas: PrendaCreada[] }
@@ -47,14 +59,20 @@ export interface PrendaDetalle extends PrendaCreada {
 
 export interface PagoDetalle {
   id: number
-  pedido_id?: number
-  metodo_pago_id?: number
-  usuario_id?: number
+  pedido_id: number
+  metodo_pago_id: number
+  usuario_id: number
   monto: number
   referencia?: string
   fecha_pago: string
   metodo_pago: MetodoPago
-  usuario?: { id: number; nombre: string; apellido: string }
+  usuario?: PagoUsuario
+}
+
+export interface PagoUsuario {
+  id: number
+  nombre: string
+  apellido: string
 }
 
 export interface SaldoPedido {
@@ -63,6 +81,34 @@ export interface SaldoPedido {
   total_pagado: number
   saldo_pendiente: number
 }
+
+export interface PagoCreatePayload {
+  metodo_pago_id: number
+  monto: number
+  referencia?: string
+}
+
+export interface Insumo {
+  id: number
+  nombre: string
+  descripcion?: string
+  unidad_medida: string
+  stock_actual: number
+  stock_minimo: number
+  activo: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface InsumoCreatePayload {
+  nombre: string
+  descripcion?: string
+  unidad_medida: string
+  stock_actual: number
+  stock_minimo: number
+}
+
+export type InsumoUpdatePayload = Partial<InsumoCreatePayload & Pick<Insumo, 'activo'>>
 
 export interface PedidoDetalle {
   id: number

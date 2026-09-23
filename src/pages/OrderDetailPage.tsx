@@ -5,7 +5,7 @@ import { cancelOrder, updateOrderStatus } from '../api/orders'
 import { errorMessage, httpStatus } from '../api/client'
 import { Modal } from '../components/Modal'
 import { OrderTimeline } from '../components/OrderTimeline'
-import { PaymentHistory } from '../components/PaymentHistory'
+import { PaymentPanel } from '../components/PaymentPanel'
 import { useAuth } from '../store/auth'
 import { useOrderData } from '../hooks/useOrderData'
 
@@ -23,7 +23,7 @@ export function OrderDetailPage({ operatorMode = false }: { operatorMode?: boole
 
 function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operatorMode: boolean }) {
   const roleId = useAuth(state => state.roleId)
-  const { order, history, statuses, loading, error, setError, notFound, load, isActive } = useOrderData(orderId)
+  const { order, history, statuses, loading, error, setError, notFound, load, refresh, isActive } = useOrderData(orderId)
   const [notice, setNotice] = useState('')
   const [cancelOpen, setCancelOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -106,7 +106,7 @@ function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operat
         {showOperatorFlow && <section className="detail-card state-update-card"><header><PackageCheck size={20}/><h2>Actualizar estado</h2></header>{availableStatuses.length ? <><p>Avanza el pedido al siguiente punto del proceso.</p><label>Nuevo estado<select aria-label="Nuevo estado" disabled={submitting} value={nextStatus} onChange={event => setNextStatus(event.target.value)}><option value="">Seleccionar estado</option>{availableStatuses.map(status => <option key={status.id} value={status.id}>{status.nombre}</option>)}</select></label><label>Observaciones<textarea value={observations} onChange={event => setObservations(event.target.value)} maxLength={255} placeholder="Agrega una nota opcional…"/></label><button className="primary wide" disabled={submitting || !nextStatus} onClick={() => void changeStatus()}>{submitting ? 'Actualizando…' : 'Actualizar estado'}</button></> : <div className="completed-state"><CheckCircle2 size={25}/><span>Este pedido ya no tiene estados pendientes.</span></div>}</section>}
 
         <section className="detail-card"><header><CalendarDays size={20}/><h2>Historial</h2></header><OrderTimeline history={history}/></section>
-        <PaymentHistory orderId={order.id} payments={order.pagos} total={order.total} canRegister={canManage}/>
+        {canManage && <PaymentPanel orderId={order.id} onPaymentSaved={refresh}/>}
       </aside>
     </div>
 

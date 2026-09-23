@@ -1,12 +1,13 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { CatalogPage } from './pages/CatalogPage'
+import { ClientsPage } from './pages/ClientsPage'
+import { ClientDetailPage } from './pages/ClientDetailPage'
 import { LoginPage } from './pages/LoginPage'
+import { InventoryPage } from './pages/InventoryPage'
 import { NewOrderPage } from './pages/NewOrderPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
 import { OrderLookupPage } from './pages/OrderLookupPage'
-import { PaymentPage } from './pages/PaymentPage'
-import { SuppliesPage } from './pages/SuppliesPage'
 import { useAuth } from './store/auth'
 import './App.css'
 
@@ -16,13 +17,14 @@ function AdminApp() {
   if (!token) return <Navigate to="/login" replace />
   return <Layout><Routes>
     <Route path="/servicios" element={<CatalogPage kind="servicios" />} />
+    <Route path="/clientes" element={<ClientsPage />} />
+    <Route path="/clientes/:clientId" element={<ClientDetailPage />} />
     <Route path="/tipos-prenda" element={<CatalogPage kind="tipos-prenda" />} />
     <Route path="/metodos-pago" element={<CatalogPage kind="metodos-pago" />} />
-    <Route path="/insumos" element={roleId === 3 ? <Navigate to="/pedidos" replace /> : <SuppliesPage />} />
+    <Route path="/insumos" element={roleId === 3 ? <Navigate to="/pedidos" replace /> : <InventoryPage />} />
     <Route path="/pedidos/nuevo" element={<NewOrderPage />} />
     <Route path="/pedidos" element={<OrderLookupPage />} />
     <Route path="/pedidos/:pedidoId" element={<OrderDetailPage />} />
-    <Route path="/pedidos/:pedidoId/cobrar" element={roleId === 3 ? <Navigate to="/pedidos" replace /> : <PaymentPage />} />
     <Route path="/operario/pedidos/:pedidoId" element={<OrderDetailPage operatorMode />} />
     <Route path="*" element={<Navigate to={roleId === 3 ? '/pedidos' : '/tipos-prenda'} replace />} />
   </Routes></Layout>

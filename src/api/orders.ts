@@ -1,7 +1,6 @@
 import { api } from './client'
-import type { Cliente, EstadoPedido, HistorialEstado, Pedido, PedidoDetalle, PrendaDraft, Servicio, TipoPrenda } from '../types'
+import type { EstadoPedido, HistorialEstado, Pedido, PedidoDetalle, PrendaDraft, Servicio, TipoPrenda } from '../types'
 
-export async function listClients() { return (await api.get<Cliente[]>('/clientes/')).data }
 export async function listGarmentTypes() { return (await api.get<TipoPrenda[]>('/tipos-prenda/')).data }
 export async function listServices() { return (await api.get<Servicio[]>('/servicios/')).data }
 export async function getOrder(id: number, signal?: AbortSignal) { return (await api.get<PedidoDetalle | null>(`/pedidos/${id}`, { signal })).data }

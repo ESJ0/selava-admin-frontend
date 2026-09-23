@@ -5,10 +5,12 @@ import { createOrder } from '../api/orders'
 import { NewOrderPage } from './NewOrderPage'
 
 vi.mock('../api/orders', () => ({
-  listClients: vi.fn().mockResolvedValue([{ id: 1, nombre: 'Ana', apellido: 'Martínez', telefono: '5555', activo: true }]),
   listGarmentTypes: vi.fn().mockResolvedValue([{ id: 2, nombre: 'Camisa', descripcion: '', activo: true }]),
   createOrder: vi.fn().mockResolvedValue({ id: 42, cliente_id: 1, prendas: [] }),
   listServices: vi.fn().mockResolvedValue([{ id: 3, nombre: 'Lavado', precio_base: 25, activo: true }, { id: 4, nombre: 'Lavado en seco', precio_base: 35, activo: true }]),
+}))
+vi.mock('../api/clients', () => ({
+  listClients: vi.fn().mockResolvedValue([{ id: 1, nombre: 'Ana', apellido: 'Martínez', telefono: '5555', activo: true }]),
 }))
 
 async function openGarmentsStep(user: ReturnType<typeof userEvent.setup>) {
