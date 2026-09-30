@@ -10,8 +10,8 @@ describe('App', () => {
     useAuth.setState({ token: null, roleId: null })
   })
 
-  it('redirige a login cuando se intenta acceder sin token', async () => {
-    render(<MemoryRouter initialEntries={['/servicios']}><App /></MemoryRouter>)
+  it('protege la ruta /clientes y redirige a login sin token', async () => {
+    render(<MemoryRouter initialEntries={['/clientes']}><App /></MemoryRouter>)
     expect(await screen.findByRole('heading', { name: 'Bienvenido' })).toBeInTheDocument()
   })
 

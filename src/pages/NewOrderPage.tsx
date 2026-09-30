@@ -1,7 +1,8 @@
 import { Check, ChevronLeft, ChevronRight, Plus, Search, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { errorMessage } from '../api/client'
-import { createOrder, listClients, listGarmentTypes, listServices } from '../api/orders'
+import { listClients } from '../api/clients'
+import { createOrder, listGarmentTypes, listServices } from '../api/orders'
 import { GarmentServiceSelector } from '../components/GarmentServiceSelector'
 import type { Cliente, PrendaDetalleDraft, PrendaDraft, Servicio, TipoPrenda } from '../types'
 
