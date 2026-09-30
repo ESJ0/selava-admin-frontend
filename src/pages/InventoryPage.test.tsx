@@ -30,6 +30,13 @@ describe('InventoryPage', () => {
     expect(screen.getByText('L')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Stock actual' })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Stock mínimo' })).toBeInTheDocument()
+    expect(screen.getByText('Disponible')).toBeInTheDocument()
+  })
+
+  it('advierte cuando el stock alcanza el mínimo', async () => {
+    mocks.list.mockResolvedValue([{ ...input, stock_actual: 5 }])
+    render(<InventoryPage/>)
+    expect(await screen.findByText('Stock bajo')).toBeInTheDocument()
   })
 
   it('crea un insumo y refresca el listado', async () => {

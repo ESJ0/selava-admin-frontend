@@ -21,7 +21,7 @@ function AdminApp() {
     <Route path="/clientes/:clientId" element={<ClientDetailPage />} />
     <Route path="/tipos-prenda" element={<CatalogPage kind="tipos-prenda" />} />
     <Route path="/metodos-pago" element={<CatalogPage kind="metodos-pago" />} />
-    <Route path="/insumos" element={<InventoryPage />} />
+    <Route path="/insumos" element={roleId === 3 ? <Navigate to="/pedidos" replace /> : <InventoryPage />} />
     <Route path="/pedidos/nuevo" element={<NewOrderPage />} />
     <Route path="/pedidos" element={<OrderLookupPage />} />
     <Route path="/pedidos/:pedidoId" element={<OrderDetailPage />} />
