@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowDownToLine, Boxes, Edit3, PackageOpen, Plus, RefreshCw } from 'lucide-react'
+import { ArrowDownToLine, Boxes, Edit3, PackageOpen, Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { createInput, deactivateInput, listInputs, listLowStockInputs, registerInventoryMovement, updateInput } from '../api/inventory'
 import { errorMessage } from '../api/client'
@@ -174,8 +174,9 @@ export function InventoryPage() {
     {error && <div className="alert error" role="alert"><span>{error}</span><button onClick={() => void load()}><RefreshCw size={16}/>Reintentar</button></div>}
     <section className="catalog-card">
       {loading ? <div className="state" role="status"><span className="spinner"/>Cargando insumos…</div> : !items.length ? <div className="state"><PackageOpen size={40}/><b>Aún no hay insumos</b><span>Crea el primer registro para comenzar.</span></div> : <div className="table-scroll"><table><thead><tr><th>Insumo</th><th>Unidad</th><th>Stock actual</th><th>Stock mínimo</th><th>Estado</th>{canManage && <th>Acciones</th>}</tr></thead><tbody>{items.map((item) => {
-        const hasLowStock = lowStockIds.has(item.id)
-        return <tr key={item.id} className={hasLowStock ? 'low-stock-row' : undefined}><td className="entity-name"><span className="entity-icon"><Boxes size={18}/></span><span>{item.nombre}{item.descripcion && <small className="unit-price">{item.descripcion}</small>}</span></td><td>{item.unidad_medida}</td><td><div className="stock-cell"><strong>{item.stock_actual} {item.unidad_medida}</strong>{hasLowStock && <span className="badge low-stock"><AlertTriangle size={15} aria-hidden="true"/>Stock bajo</span>}</div></td><td>{item.stock_minimo} {item.unidad_medida}</td><td><span className={`badge ${item.activo ? 'active' : ''}`}>{item.activo ? 'Activo' : 'Inactivo'}</span></td>{canManage && <td className="actions"><button onClick={() => setEditing(item)}><Edit3 size={16}/>Editar</button><button onClick={() => void toggle(item)}>{item.activo ? 'Desactivar' : 'Activar'}</button></td>}</tr>
+        const hasLowStock = item.activo && (lowStockIds.has(item.id) || item.stock_actual <= item.stock_minimo)
+        const stockState = !item.activo ? 'Inactivo' : hasLowStock ? 'Stock bajo' : 'Disponible'
+        return <tr key={item.id} className={hasLowStock ? 'low-stock-row' : undefined}><td className="entity-name"><span className="entity-icon"><Boxes size={18}/></span><span>{item.nombre}{item.descripcion && <small className="unit-price">{item.descripcion}</small>}</span></td><td>{item.unidad_medida}</td><td><div className="stock-cell"><strong>{item.stock_actual} {item.unidad_medida}</strong></div></td><td>{item.stock_minimo} {item.unidad_medida}</td><td><span className={`stock-level ${!item.activo ? 'inactive' : hasLowStock ? 'low' : 'ok'}`}>{stockState}</span></td>{canManage && <td className="actions"><button onClick={() => setEditing(item)}><Edit3 size={16}/>Editar</button><button onClick={() => void toggle(item)}>{item.activo ? 'Desactivar' : 'Activar'}</button></td>}</tr>
       })}</tbody></table></div>}
     </section>
     {editing !== undefined && <Modal title={`${editing ? 'Editar' : 'Nuevo'} insumo`} onClose={() => setEditing(undefined)}><InventoryForm item={editing} onClose={() => setEditing(undefined)} onSaved={(message) => { setEditing(undefined); setSuccess(message); void load() }}/></Modal>}
