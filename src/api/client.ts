@@ -11,6 +11,13 @@ export function httpStatus(error: unknown) {
 
 export function errorMessage(error: unknown): string {
   if (!axios.isAxiosError(error)) return 'Ocurrió un error inesperado.'
+  const status = httpStatus(error)
+  const protectedMessages: Record<number, string> = {
+    401: 'Tu sesión terminó. Inicia sesión nuevamente.',
+    403: 'No tienes permiso para realizar esta acción.',
+    500: 'No pudimos completar la operación. Inténtalo nuevamente.',
+  }
+  if (status && protectedMessages[status]) return protectedMessages[status]
   const data: unknown = error.response?.data
   if (data && typeof data === 'object') {
     const body = data as { error?: unknown; errores?: unknown }
@@ -33,6 +40,5 @@ export function errorMessage(error: unknown): string {
     422: 'Revisa los datos ingresados antes de continuar.',
     500: 'No pudimos completar la operación. Inténtalo nuevamente.',
   }
-  const status = httpStatus(error)
   return status ? messages[status] ?? 'El servidor no pudo completar la operación.' : 'No fue posible conectar con el servidor.'
 }

@@ -1,8 +1,12 @@
 import { api } from './client'
-import type { Insumo, InsumoCreatePayload, InsumoUpdatePayload } from '../types'
+import type { Insumo, InsumoCreatePayload, InsumoUpdatePayload, MovimientoInventario, MovimientoInventarioCreatePayload } from '../types'
 
 export async function listInputs(signal?: AbortSignal) {
   return (await api.get<Insumo[]>('/insumos/', { signal })).data
+}
+
+export async function listLowStockInputs(signal?: AbortSignal) {
+  return (await api.get<Insumo[]>('/insumos/alertas/stock-minimo', { signal })).data
 }
 
 export async function createInput(payload: InsumoCreatePayload) {
@@ -15,4 +19,8 @@ export async function updateInput(id: number, payload: InsumoUpdatePayload) {
 
 export async function deactivateInput(id: number) {
   await api.delete(`/insumos/${id}`)
+}
+
+export async function registerInventoryMovement(payload: MovimientoInventarioCreatePayload) {
+  return (await api.post<MovimientoInventario>('/movimientos-inventario/', payload)).data
 }
