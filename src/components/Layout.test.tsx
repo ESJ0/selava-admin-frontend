@@ -14,6 +14,8 @@ describe('Layout', () => {
     const nav = screen.getByRole('navigation')
     expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual([
       'Clientes',
+      'Reporte de ventas',
+      'Pedidos por estado',
       'Tipos de prenda',
       'Tipos de servicio',
       'Métodos de pago',
@@ -23,7 +25,15 @@ describe('Layout', () => {
     expect(ordersButton).toHaveAttribute('aria-expanded', 'false')
     await user.click(ordersButton)
     expect(ordersButton).toHaveAttribute('aria-expanded', 'true')
-    expect(within(nav).getAllByRole('link').slice(5).map((link) => link.textContent)).toEqual(['Consultar pedidos', 'Nuevo pedido'])
+    expect(within(nav).getAllByRole('link').slice(7).map((link) => link.textContent)).toEqual(['Consultar pedidos', 'Nuevo pedido'])
     expect(within(nav).getByRole('region', { name: 'Pedidos' })).toBeInTheDocument()
+  })
+
+  it('solo muestra los reportes al administrador', () => {
+    useAuth.setState({ token: 'test-token', roleId: 2 })
+    render(<MemoryRouter><Layout><div>Contenido</div></Layout></MemoryRouter>)
+
+    expect(screen.queryByRole('link', { name: 'Reporte de ventas' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Pedidos por estado' })).not.toBeInTheDocument()
   })
 })

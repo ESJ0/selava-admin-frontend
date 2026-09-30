@@ -8,6 +8,8 @@ import { InventoryPage } from './pages/InventoryPage'
 import { NewOrderPage } from './pages/NewOrderPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
 import { OrderLookupPage } from './pages/OrderLookupPage'
+import { OrdersByStatusReportPage } from './pages/OrdersByStatusReportPage'
+import { SalesReportPage } from './pages/SalesReportPage'
 import { useAuth } from './store/auth'
 import './App.css'
 
@@ -25,6 +27,8 @@ function AdminApp() {
     <Route path="/pedidos/nuevo" element={<NewOrderPage />} />
     <Route path="/pedidos" element={<OrderLookupPage />} />
     <Route path="/pedidos/:pedidoId" element={<OrderDetailPage />} />
+    {roleId === 1 && <Route path="/reportes/ventas" element={<SalesReportPage />} />}
+    {roleId === 1 && <Route path="/reportes/pedidos-por-estado" element={<OrdersByStatusReportPage />} />}
     <Route path="/operario/pedidos/:pedidoId" element={<OrderDetailPage operatorMode />} />
     <Route path="*" element={<Navigate to={roleId === 3 ? '/pedidos' : '/tipos-prenda'} replace />} />
   </Routes></Layout>
