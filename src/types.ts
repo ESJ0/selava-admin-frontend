@@ -157,3 +157,37 @@ export interface HistorialEstado {
   estado: EstadoPedido
   usuario: { id: number; nombre: string; apellido: string }
 }
+
+export interface ReporteVentasPorDia {
+  fecha: string
+  cantidad_ventas: number
+  cantidad_pagos: number
+  total_ventas: number
+}
+
+export interface ReporteVentasPorMetodoPago {
+  metodo_pago: MetodoPago
+  cantidad_ventas: number
+  cantidad_pagos: number
+  total_ventas: number
+}
+
+export interface ReporteVentas {
+  fecha_inicio: string
+  fecha_fin: string
+  cantidad_ventas: number
+  cantidad_pagos: number
+  total_ventas: number
+  ventas_por_dia: ReporteVentasPorDia[]
+  ventas_por_metodo_pago: ReporteVentasPorMetodoPago[]
+}
+
+export interface ReportePedidosPorEstadoDetalle {
+  estado: EstadoPedido
+  cantidad_pedidos: number
+}
+
+export interface ReportePedidosPorEstado {
+  total_pedidos: number
+  pedidos_por_estado: ReportePedidosPorEstadoDetalle[]
+}
