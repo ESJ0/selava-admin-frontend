@@ -16,23 +16,14 @@ vi.mock('recharts', () => ({
   YAxis: () => null,
 }))
 
-const input = (id: number, nombre: string, unidad_medida: string) => ({
-  id,
-  nombre,
-  unidad_medida,
-  stock_actual: 20,
-  stock_minimo: 5,
-  activo: true,
-  created_at: '2026-09-01T00:00:00Z',
-  updated_at: '2026-09-01T00:00:00Z',
-})
-
 const report = {
   fecha_inicio: '2026-09-01',
   fecha_fin: '2026-09-30',
+  cantidad_movimientos: 3,
+  total_consumido: 20.5,
   consumo_por_insumo: [
-    { insumo: input(1, 'Detergente', 'L'), cantidad_consumida: 12.5 },
-    { insumo: input(2, 'Bolsas', 'unidad'), cantidad_consumida: 8 },
+    { insumo_id: 1, nombre: 'Detergente', unidad_medida: 'L', cantidad_movimientos: 2, cantidad_consumida: 12.5 },
+    { insumo_id: 2, nombre: 'Bolsas', unidad_medida: 'unidad', cantidad_movimientos: 1, cantidad_consumida: 8 },
   ],
 }
 
@@ -47,6 +38,7 @@ describe('SupplyConsumptionReportPage', () => {
 
     const summary = await screen.findByLabelText('Resumen de consumo de insumos')
     expect(within(summary).getByText('Insumos consumidos').nextElementSibling).toHaveTextContent('2')
+    expect(within(summary).getByText('Movimientos de salida').nextElementSibling).toHaveTextContent('3')
     expect(within(summary).getByText('12.5 L')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Gráfica de consumo de insumos por período' })).toBeInTheDocument()
     expect(screen.getAllByText('Detergente')).toHaveLength(2)

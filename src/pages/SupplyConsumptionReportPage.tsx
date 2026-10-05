@@ -88,7 +88,6 @@ export function SupplyConsumptionReportPage() {
     .filter((item) => item.cantidad_consumida > 0)
     .sort((left, right) => right.cantidad_consumida - left.cantidad_consumida) ?? [], [report])
   const leading = useMemo(() => consumed.reduce<ReporteConsumoInsumoDetalle | null>((current, item) => !current || item.cantidad_consumida > current.cantidad_consumida ? item : current, null), [consumed])
-  const unitCount = useMemo(() => new Set(consumed.map((item) => item.insumo.unidad_medida)).size, [consumed])
 
   return <section className="report-page supply-consumption-report-page">
     <header className="page-heading report-heading">
@@ -109,8 +108,8 @@ export function SupplyConsumptionReportPage() {
       <div className="report-period-label">Resultados del {formatLongDate(report.fecha_inicio)} al {formatLongDate(report.fecha_fin)}</div>
       <section className="report-metrics supply-consumption-metrics" aria-label="Resumen de consumo de insumos">
         <article><span className="metric-icon sales"><PackageSearch size={23}/></span><div><small>Insumos consumidos</small><strong>{consumed.length}</strong><span>Con salidas en el período</span></div></article>
-        <article><span className="metric-icon payments"><TrendingDown size={23}/></span><div><small>Mayor consumo</small><strong>{leading ? formatQuantity(leading.cantidad_consumida, leading.insumo.unidad_medida) : 'Sin consumo'}</strong><span>{leading?.insumo.nombre ?? 'No hay salidas registradas'}</span></div></article>
-        <article><span className="metric-icon average"><Scale size={23}/></span><div><small>Unidades de medida</small><strong>{unitCount}</strong><span>Presentes en los resultados</span></div></article>
+        <article><span className="metric-icon payments"><Activity size={23}/></span><div><small>Movimientos de salida</small><strong>{report.cantidad_movimientos}</strong><span>Registrados en el período</span></div></article>
+        <article><span className="metric-icon average"><TrendingDown size={23}/></span><div><small>Mayor consumo</small><strong>{leading ? formatQuantity(leading.cantidad_consumida, leading.unidad_medida) : 'Sin consumo'}</strong><span>{leading?.nombre ?? 'No hay salidas registradas'}</span></div></article>
       </section>
 
       <section className="supply-consumption-grid">
@@ -121,8 +120,8 @@ export function SupplyConsumptionReportPage() {
               <BarChart data={consumed} layout="vertical" margin={{ top: 8, right: 30, left: 16, bottom: 8 }}>
                 <CartesianGrid stroke="#e8eef5" strokeDasharray="4 4" horizontal={false}/>
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#7890aa', fontSize: 12 }}/>
-                <YAxis type="category" dataKey="insumo.nombre" width={118} axisLine={false} tickLine={false} tick={{ fill: '#526b86', fontSize: 12 }}/>
-                <Tooltip formatter={(value, _name, item) => [formatQuantity(Number(value), (item.payload as ReporteConsumoInsumoDetalle).insumo.unidad_medida), 'Consumo']} contentStyle={{ border: '1px solid #e2e9f2', borderRadius: 12, boxShadow: '0 8px 28px #082c4520' }}/>
+                <YAxis type="category" dataKey="nombre" width={118} axisLine={false} tickLine={false} tick={{ fill: '#526b86', fontSize: 12 }}/>
+                <Tooltip formatter={(value, _name, item) => [formatQuantity(Number(value), (item.payload as ReporteConsumoInsumoDetalle).unidad_medida), 'Consumo']} contentStyle={{ border: '1px solid #e2e9f2', borderRadius: 12, boxShadow: '0 8px 28px #082c4520' }}/>
                 <Bar dataKey="cantidad_consumida" name="Consumo" fill="#05aff2" radius={[0, 7, 7, 0]} maxBarSize={38}/>
               </BarChart>
             </ResponsiveContainer>
@@ -130,13 +129,13 @@ export function SupplyConsumptionReportPage() {
         </article>
 
         <article className="report-card consumption-detail-card">
-          <header><div><h2>Detalle de consumo</h2><p>Cantidades según su unidad de medida</p></div><span className="report-card-icon"><Activity size={20}/></span></header>
+          <header><div><h2>Detalle de consumo</h2><p>Cantidades según su unidad de medida</p></div><span className="report-card-icon"><Scale size={20}/></span></header>
           {consumed.length === 0 ? <div className="report-empty compact"><PackageSearch size={38}/><b>Sin salidas registradas</b></div> : <div className="consumption-detail-list">{consumed.map((item, index) => {
             const relative = leading ? (item.cantidad_consumida / leading.cantidad_consumida) * 100 : 0
-            return <div className="consumption-detail-row" key={item.insumo.id}>
+            return <div className="consumption-detail-row" key={item.insumo_id}>
               <span className="consumption-rank">{index + 1}</span>
-              <div><b>{item.insumo.nombre}</b><span>{item.insumo.unidad_medida}</span></div>
-              <strong>{formatQuantity(item.cantidad_consumida, item.insumo.unidad_medida)}</strong>
+              <div><b>{item.nombre}</b><span>{item.unidad_medida} · {item.cantidad_movimientos} {item.cantidad_movimientos === 1 ? 'movimiento' : 'movimientos'}</span></div>
+              <strong>{formatQuantity(item.cantidad_consumida, item.unidad_medida)}</strong>
               <div className="consumption-progress"><i style={{ width: `${relative}%` }}/></div>
             </div>
           })}</div>}
