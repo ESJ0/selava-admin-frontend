@@ -191,3 +191,19 @@ export interface ReportePedidosPorEstado {
   total_pedidos: number
   pedidos_por_estado: ReportePedidosPorEstadoDetalle[]
 }
+
+export interface ReporteConsumoInsumoDetalle {
+  insumo_id: number
+  nombre: string
+  unidad_medida: string
+  cantidad_movimientos: number
+  cantidad_consumida: number
+}
+
+export interface ReporteConsumoInsumos {
+  fecha_inicio: string
+  fecha_fin: string
+  cantidad_movimientos: number
+  total_consumido: number
+  consumo_por_insumo: ReporteConsumoInsumoDetalle[]
+}

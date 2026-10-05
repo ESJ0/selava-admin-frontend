@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from './client'
-import { getOrdersByStatusReport, getSalesReport } from './reports'
+import { getOrdersByStatusReport, getSalesReport, getSupplyConsumptionReport } from './reports'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -24,5 +24,17 @@ describe('contrato API de reportes', () => {
     await getOrdersByStatusReport(signal)
 
     expect(get).toHaveBeenCalledWith('/reportes/pedidos-por-estado', { signal })
+  })
+
+  it('envía el período al reporte de consumo de insumos', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ data: { consumo_por_insumo: [] } })
+    const signal = new AbortController().signal
+
+    await getSupplyConsumptionReport('2026-09-01', '2026-09-30', signal)
+
+    expect(get).toHaveBeenCalledWith('/reportes/consumo-insumos', {
+      params: { fecha_inicio: '2026-09-01', fecha_fin: '2026-09-30' },
+      signal,
+    })
   })
 })

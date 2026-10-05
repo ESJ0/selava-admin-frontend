@@ -1,4 +1,4 @@
-import { Bell, Boxes, ChartColumnBig, ChartPie, ChevronDown, ClipboardList, CreditCard, LogOut, Menu, PackagePlus, Search, Shirt, Sparkles, Users, X } from 'lucide-react'
+import { Bell, Boxes, ChartColumnBig, ChartPie, ChevronDown, ClipboardList, CreditCard, LogOut, Menu, PackageSearch, PackagePlus, Search, Shirt, Sparkles, Users, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../store/auth'
@@ -7,6 +7,7 @@ const adminLinks = [
   { to: '/clientes', label: 'Clientes', icon: Users },
   { to: '/reportes/ventas', label: 'Reporte de ventas', icon: ChartColumnBig },
   { to: '/reportes/pedidos-por-estado', label: 'Pedidos por estado', icon: ChartPie },
+  { to: '/reportes/consumo-insumos', label: 'Consumo de insumos', icon: PackageSearch },
   { to: '/tipos-prenda', label: 'Tipos de prenda', icon: Shirt },
   { to: '/servicios', label: 'Tipos de servicio', icon: Sparkles },
   { to: '/metodos-pago', label: 'Métodos de pago', icon: CreditCard },
