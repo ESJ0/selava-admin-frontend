@@ -10,6 +10,7 @@ import { OrderDetailPage } from './pages/OrderDetailPage'
 import { OrderLookupPage } from './pages/OrderLookupPage'
 import { OrdersByStatusReportPage } from './pages/OrdersByStatusReportPage'
 import { SalesReportPage } from './pages/SalesReportPage'
+import { SupplyConsumptionReportPage } from './pages/SupplyConsumptionReportPage'
 import { useAuth } from './store/auth'
 import './App.css'
 
@@ -29,6 +30,7 @@ function AdminApp() {
     <Route path="/pedidos/:pedidoId" element={<OrderDetailPage />} />
     {roleId === 1 && <Route path="/reportes/ventas" element={<SalesReportPage />} />}
     {roleId === 1 && <Route path="/reportes/pedidos-por-estado" element={<OrdersByStatusReportPage />} />}
+    {roleId === 1 && <Route path="/reportes/consumo-insumos" element={<SupplyConsumptionReportPage />} />}
     <Route path="/operario/pedidos/:pedidoId" element={<OrderDetailPage operatorMode />} />
     <Route path="*" element={<Navigate to={roleId === 3 ? '/pedidos' : '/tipos-prenda'} replace />} />
   </Routes></Layout>

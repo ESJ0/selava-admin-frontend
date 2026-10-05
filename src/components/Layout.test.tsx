@@ -16,6 +16,7 @@ describe('Layout', () => {
       'Clientes',
       'Reporte de ventas',
       'Pedidos por estado',
+      'Consumo de insumos',
       'Tipos de prenda',
       'Tipos de servicio',
       'Métodos de pago',
@@ -25,7 +26,7 @@ describe('Layout', () => {
     expect(ordersButton).toHaveAttribute('aria-expanded', 'false')
     await user.click(ordersButton)
     expect(ordersButton).toHaveAttribute('aria-expanded', 'true')
-    expect(within(nav).getAllByRole('link').slice(7).map((link) => link.textContent)).toEqual(['Consultar pedidos', 'Nuevo pedido'])
+    expect(within(nav).getAllByRole('link').slice(8).map((link) => link.textContent)).toEqual(['Consultar pedidos', 'Nuevo pedido'])
     expect(within(nav).getByRole('region', { name: 'Pedidos' })).toBeInTheDocument()
   })
 
@@ -35,5 +36,6 @@ describe('Layout', () => {
 
     expect(screen.queryByRole('link', { name: 'Reporte de ventas' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Pedidos por estado' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Consumo de insumos' })).not.toBeInTheDocument()
   })
 })
