@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { EstadoPedido, HistorialEstado, Pedido, PedidoDetalle, PrendaDraft, Servicio, TipoPrenda } from '../types'
+import type { EstadoPedido, HistorialEstado, Pedido, PedidoDetalle, PedidoListFilters, PedidoListResponse, PrendaDraft, Servicio, TipoPrenda } from '../types'
 
 export async function listGarmentTypes() { return (await api.get<TipoPrenda[]>('/tipos-prenda/')).data }
 export async function listServices() { return (await api.get<Servicio[]>('/servicios/')).data }
@@ -7,6 +7,9 @@ export async function getOrder(id: number, signal?: AbortSignal) { return (await
 export async function getOrderHistory(id: number, signal?: AbortSignal) { return (await api.get<HistorialEstado[]>(`/pedidos/${id}/historial-estados`, { signal })).data }
 export async function cancelOrder(id: number) { return (await api.put(`/pedidos/${id}/cancelar`)).data }
 export async function listOrderStatuses(signal?: AbortSignal) { return (await api.get<EstadoPedido[]>('/estados-pedido/', { signal })).data }
+export async function listOrders(filters: PedidoListFilters, signal?: AbortSignal) {
+  return (await api.get<PedidoListResponse>('/pedidos/', { params: filters, signal })).data
+}
 export async function updateOrderStatus(id: number, estadoId: number, observaciones?: string) {
   return (await api.put(`/pedidos/${id}/estado`, {
     estado_id: estadoId,

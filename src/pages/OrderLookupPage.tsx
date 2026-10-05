@@ -2,6 +2,7 @@ import { ArrowRight, Search } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../store/auth'
+import { OrdersList } from '../components/OrdersList'
 
 export function OrderLookupPage() {
   const [orderId, setOrderId] = useState('')
@@ -30,5 +31,6 @@ export function OrderLookupPage() {
       {error && <div className="alert error">{error}</div>}
       <button className="primary" type="submit">Abrir pedido <ArrowRight size={18}/></button>
     </form>
+    <OrdersList detailBase={roleId === 3 ? '/operario/pedidos' : '/pedidos'} />
   </section>
 }

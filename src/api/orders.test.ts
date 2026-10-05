@@ -1,11 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from './client'
-import { cancelOrder, createOrder, getOrder, getOrderHistory, listOrderStatuses, updateOrderStatus } from './orders'
+import { cancelOrder, createOrder, getOrder, getOrderHistory, listOrders, listOrderStatuses, updateOrderStatus } from './orders'
 import { useAuth } from '../store/auth'
 
 afterEach(() => { vi.restoreAllMocks(); useAuth.setState({ token: null, roleId: null }) })
 
 describe('contrato API de pedidos', () => {
+  it('envía los filtros y la paginación del listado al backend con AbortSignal', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ data: { pedidos: [], total: 0, pagina: 1, limite: 20 } })
+    const signal = new AbortController().signal
+    const filters = { q: 'SLV-0042', estado_id: 3, fecha_desde: '2026-10-01', fecha_hasta: '2026-10-05', pagina: 1, limite: 20, orden: 'recientes' as const }
+    await listOrders(filters, signal)
+    expect(get).toHaveBeenCalledWith('/pedidos/', { params: filters, signal })
+  })
   it('usa las rutas reales de detalle, historial y catálogo y propaga AbortSignal', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue({ data: [] })
     const signal = new AbortController().signal

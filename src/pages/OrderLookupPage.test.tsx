@@ -1,9 +1,16 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { listOrders, listOrderStatuses } from '../api/orders'
 import { OrderLookupPage } from './OrderLookupPage'
 import { useAuth } from '../store/auth'
+
+vi.mock('../api/orders', () => ({ listOrders: vi.fn(), listOrderStatuses: vi.fn() }))
+beforeEach(() => {
+  vi.mocked(listOrders).mockResolvedValue({ pedidos: [], total: 0, pagina: 1, limite: 20 })
+  vi.mocked(listOrderStatuses).mockResolvedValue([])
+})
 
 describe('OrderLookupPage', () => {
   it('valida el número y lleva al operario a su flujo de actualización', async () => {

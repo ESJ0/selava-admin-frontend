@@ -44,6 +44,33 @@ export interface EstadoPedido {
   updated_at?: string
 }
 
+export interface PedidoResumen {
+  id: number
+  fecha_recibido: string
+  fecha_entrega_estimada?: string
+  total: number
+  activo: boolean
+  cliente: Pick<Cliente, 'id' | 'nombre' | 'apellido' | 'telefono'>
+  estado_actual: EstadoPedido
+}
+
+export interface PedidoListResponse {
+  pedidos: PedidoResumen[]
+  total: number
+  pagina: number
+  limite: number
+}
+
+export interface PedidoListFilters {
+  q?: string
+  estado_id?: number
+  fecha_desde?: string
+  fecha_hasta?: string
+  pagina: number
+  limite: number
+  orden: 'recientes' | 'antiguos'
+}
+
 export interface PrendaServicioDetalle {
   id: number
   prenda_id: number
