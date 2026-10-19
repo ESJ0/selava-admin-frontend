@@ -45,7 +45,7 @@ const detail = {
   estado_actual: { id: 1, nombre: 'Recibido', orden: 1 },
   prendas: [{
     id: 9, pedido_id: 42, tipo_prenda_id: 2, cantidad: 2, color: 'Azul',
-    tipo_prenda: { id: 2, nombre: 'Camisa', activo: true },
+    tipo_prenda: { id: 2, nombre: 'Camisa', precio: 999, activo: true },
     servicios: [{ id: 5, prenda_id: 9, servicio_id: 3, precio_aplicado: 25, servicio: { id: 3, nombre: 'Lavado', activo: true, precio_base: 25 } }],
   }],
   pagos: [],
@@ -76,6 +76,16 @@ describe('OrderDetailPage', () => {
     mocks.payments.mockResolvedValue([])
     mocks.methods.mockResolvedValue([{ id: 1, nombre: 'Efectivo', activo: true }])
     mocks.registerPayment.mockResolvedValue({})
+  })
+
+  it('muestra la tarifa congelada de la prenda y no los precios actuales del catálogo', async () => {
+    mocks.detail.mockResolvedValue({ ...detail, prendas: [{ ...detail.prendas[0], precio_aplicado: 25, servicios: [{ ...detail.prendas[0].servicios[0], precio_aplicado: 0 }] }] })
+    renderPage()
+    expect(await screen.findByText('Precio aplicado a la prenda')).toBeInTheDocument()
+    expect(screen.getByText('Lavado')).toBeInTheDocument()
+    expect(screen.queryByText(/Q\s*999\.00/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Q\s*0\.00 por unidad/)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/Q\s*50\.00/).length).toBeGreaterThan(0)
   })
 
   it('muestra cliente, prendas, servicios, total e historial con responsable', async () => {
