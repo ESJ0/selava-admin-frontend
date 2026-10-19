@@ -74,6 +74,9 @@ export function NewOrderPage() {
     if (step === 2 && garments.some((garment) => !garment.tipo_prenda_id || typeof garment.cantidad !== 'number' || !Number.isInteger(garment.cantidad) || garment.cantidad < 1 || garment.cantidad > 50 || garment.detalles.length !== garment.cantidad)) {
       return setError('Selecciona el tipo y una cantidad entre 1 y 50 para cada tipo de prenda.')
     }
+    if (step === 2 && garments.some((garment) => !types.find((type) => type.id === garment.tipo_prenda_id)?.precio)) {
+      return setError('Configura el precio de cada tipo de prenda antes de continuar.')
+    }
     if (step === 2 && garments.some((garment) => garment.detalles.some((detail) => detail.servicio_ids.length === 0))) {
       return setError('Selecciona al menos un servicio para cada detalle de prenda.')
     }
@@ -102,9 +105,9 @@ export function NewOrderPage() {
   }
 
   const detailRows = garments.flatMap((garment) => garment.detalles.map((detail) => ({ garment, detail })))
-  const total = detailRows.reduce((orderTotal, { detail }) => orderTotal + detail.servicio_ids.reduce((detailTotal, serviceId) => {
-    return detailTotal + (services.find((service) => service.id === serviceId)?.precio_base ?? 0) * detail.cantidad
-  }, 0), 0)
+  const garmentSubtotal = (garment: PrendaDraft, detail: PrendaDetalleDraft) =>
+    (types.find((type) => type.id === garment.tipo_prenda_id)?.precio ?? 0) * detail.cantidad
+  const total = detailRows.reduce((sum, { garment, detail }) => sum + Math.round(garmentSubtotal(garment, detail) * 100), 0) / 100
 
   async function submit() {
     if (!selected || !deliveryDate) return
@@ -166,7 +169,7 @@ export function NewOrderPage() {
         {garments.map((garment, garmentIndex) => <section className="garment garment-group" key={garmentIndex}>
           <header><b>Tipo de prenda {garmentIndex + 1}</b>{garments.length > 1 && <button className="danger-link" onClick={() => setGarments((current) => current.filter((_, index) => index !== garmentIndex))}><Trash2 size={17}/>Eliminar tipo</button>}</header>
           <div className="garment-basics">
-            <label>Tipo de prenda *<select value={garment.tipo_prenda_id} onChange={(event) => updateGarment(garmentIndex, { tipo_prenda_id: Number(event.target.value) || '' })}><option value="">Seleccionar tipo</option>{types.map((type) => <option key={type.id} value={type.id}>{type.nombre}</option>)}</select></label>
+            <label>Tipo de prenda *<select value={garment.tipo_prenda_id} onChange={(event) => updateGarment(garmentIndex, { tipo_prenda_id: Number(event.target.value) || '' })}><option value="">Seleccionar tipo</option>{types.map((type) => <option key={type.id} value={type.id} disabled={type.precio == null}>{type.nombre} — {type.precio == null ? 'Precio pendiente' : `Q${type.precio.toFixed(2)}`}</option>)}</select></label>
             <label>Cantidad *<input aria-label={`Cantidad de ${garmentIndex === 0 ? 'prendas' : `prendas del tipo ${garmentIndex + 1}`}`} type="number" min="1" max="50" step="1" value={garment.cantidad} onChange={(event) => changeGarmentQuantity(garmentIndex, event.target.value)}/></label>
           </div>
           <label className="common-service-option"><input type="checkbox" checked={garment.aplicar_servicio_comun} onChange={(event) => updateGarment(garmentIndex, { aplicar_servicio_comun: event.target.checked, ...(!event.target.checked && { servicio_ids_comunes: [] }) })}/><b>Aplicar los mismos servicios a este tipo de prenda</b></label>
@@ -196,7 +199,7 @@ export function NewOrderPage() {
         <div className="summary-client"><small>Cliente</small><b>{selected?.nombre} {selected?.apellido}</b><span>{selected?.telefono}</span></div>
         {detailRows.map(({ garment, detail }, index) => <div className="summary-garment" key={index}>
           <span><b>{types.find((type) => type.id === garment.tipo_prenda_id)?.nombre} × {detail.cantidad}</b><small>{[detail.color, detail.servicio_ids.map((id) => services.find((service) => service.id === id)?.nombre).filter(Boolean).join(', ')].filter(Boolean).join(' · ')}</small></span>
-          <b>Q{detail.servicio_ids.reduce((sum, id) => sum + (services.find((service) => service.id === id)?.precio_base ?? 0) * detail.cantidad, 0).toFixed(2)}</b>
+          <b>Q{garmentSubtotal(garment, detail).toFixed(2)}</b>
         </div>)}
         <div className="delivery-summary"><small>Fecha de entrega</small><b>{new Date(`${deliveryDate}T12:00:00`).toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
         <label className="observations-field">Observaciones del pedido<input value={observations} onChange={(event) => setObservations(event.target.value)} placeholder="Instrucciones especiales…" /></label>

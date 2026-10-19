@@ -40,7 +40,7 @@ export function GarmentServiceSelector({ services, selectedIds, onToggle }: Garm
           <input type="checkbox" checked={selected} disabled={blocked} aria-label={service.nombre} onChange={() => onToggle(service.id)} />
           <span>
             <b>{service.nombre}</b>
-            <small>Q{service.precio_base.toFixed(2)}</small>
+            {service.descripcion && <small>{service.descripcion}</small>}
           </span>
           <span className="service-action" aria-hidden="true">{selected ? <Check size={18} /> : <Plus size={18} />}</span>
         </label>

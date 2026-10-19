@@ -1,13 +1,13 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { createOrder } from '../api/orders'
+import { createOrder, listGarmentTypes } from '../api/orders'
 import { NewOrderPage } from './NewOrderPage'
 
 vi.mock('../api/orders', () => ({
-  listGarmentTypes: vi.fn().mockResolvedValue([{ id: 2, nombre: 'Camisa', descripcion: '', activo: true }]),
+  listGarmentTypes: vi.fn().mockResolvedValue([{ id: 2, nombre: 'Camisa', descripcion: '', precio: 25, activo: true }]),
   createOrder: vi.fn().mockResolvedValue({ id: 42, cliente_id: 1, prendas: [] }),
-  listServices: vi.fn().mockResolvedValue([{ id: 3, nombre: 'Lavado', precio_base: 25, activo: true }, { id: 4, nombre: 'Lavado en seco', precio_base: 35, activo: true }]),
+  listServices: vi.fn().mockResolvedValue([{ id: 3, nombre: 'Lavado', precio_base: 25, activo: true }, { id: 4, nombre: 'Lavado en seco', precio_base: 35, activo: true }, { id: 5, nombre: 'Planchado', precio_base: 99, activo: true }]),
 }))
 vi.mock('../api/clients', () => ({
   listClients: vi.fn().mockResolvedValue([{ id: 1, nombre: 'Ana', apellido: 'Martínez', telefono: '5555', activo: true }]),
@@ -19,6 +19,33 @@ async function openGarmentsStep(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('NewOrderPage', () => {
+  it('cobra cada prenda una sola vez aunque incluya varios servicios', async () => {
+    const user = userEvent.setup()
+    render(<NewOrderPage />)
+    await openGarmentsStep(user)
+    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '2')
+    await user.clear(screen.getByLabelText('Cantidad de prendas'))
+    await user.type(screen.getByLabelText('Cantidad de prendas'), '2')
+    await user.click(screen.getByRole('checkbox', { name: /aplicar los mismos servicios/i }))
+    await user.click(screen.getByRole('checkbox', { name: 'Lavado' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Planchado' }))
+    expect(screen.queryByText('Q99.00')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    await user.type(screen.getByLabelText(/fecha de entrega/i), '2026-12-01')
+    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    expect(within(document.querySelector('.order-total') as HTMLElement).getByText('Q50.00')).toBeInTheDocument()
+    expect(document.querySelectorAll('.summary-garment')).toHaveLength(2)
+    expect(screen.getAllByText('Q25.00')).toHaveLength(2)
+  })
+
+  it('impide seleccionar tipos antiguos sin precio configurado', async () => {
+    vi.mocked(listGarmentTypes).mockResolvedValueOnce([{ id: 2, nombre: 'Camisa', precio: null, activo: true }])
+    const user = userEvent.setup()
+    render(<NewOrderPage />)
+    await openGarmentsStep(user)
+    expect(screen.getByRole('option', { name: /Camisa — Precio pendiente/ })).toBeDisabled()
+  })
+
   it('requiere cliente y permite agregar varios tipos de prenda', async () => {
     const user = userEvent.setup()
     render(<NewOrderPage />)
