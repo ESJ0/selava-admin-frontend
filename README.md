@@ -42,3 +42,14 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## SEL-107: precios de prendas
+
+Tipos de prenda administra `precio` en quetzales, positivo y con hasta dos decimales.
+Los registros anteriores sin tarifa aparecen como **Pendiente de configurar** y no
+pueden seleccionarse para nuevos pedidos. Servicios conserva su catalogo y asociaciones,
+sin campos ni columnas de precio. El resumen de pedido estima el cobro desde el tipo
+de prenda una sola vez por prenda; el servidor confirma y congela la tarifa.
+El detalle usa `prendas.precio_aplicado` para pedidos nuevos y conserva los importes
+por servicio en pedidos anteriores. Requiere el backend y migracion 023 de SEL-107.
+No incluye modalidades de SEL-108 ni promociones de SEL-109.

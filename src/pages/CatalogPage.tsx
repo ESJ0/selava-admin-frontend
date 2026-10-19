@@ -8,7 +8,7 @@ import type { CatalogKind, Servicio, TipoPrenda } from '../types'
 
 const config = {
   servicios: { title: 'Servicios', subtitle: 'Gestiona los servicios que ofrece SeLava.', singular: 'servicio', button: 'Nuevo servicio' },
-  'tipos-prenda': { title: 'Tipos de prenda', subtitle: 'Gestiona los tipos de prenda disponibles.', singular: 'tipo de prenda', button: 'Nuevo tipo' },
+  'tipos-prenda': { title: 'Tipos de prenda', subtitle: 'Gestiona los tipos de prenda y sus precios en quetzales.', singular: 'tipo de prenda', button: 'Nuevo tipo' },
   'metodos-pago': { title: 'Métodos de pago', subtitle: 'Gestiona los métodos de pago aceptados.', singular: 'método de pago', button: 'Nuevo método' },
 } satisfies Record<CatalogKind, { title: string; subtitle: string; singular: string; button: string }>
 
@@ -20,16 +20,22 @@ function CatalogForm({ kind, item, onClose, onSaved }: { kind: CatalogKind; item
     event.preventDefault(); setSaving(true); setError(''); const values = new FormData(event.currentTarget)
     const payload: CatalogPayload = { nombre: String(values.get('nombre')).trim() }
     if (kind !== 'metodos-pago') payload.descripcion = String(values.get('descripcion')).trim()
-    if (kind === 'servicios') { payload.precio_base = Number(values.get('precio_base')); const hours = Number(values.get('tiempo_estimado_horas')); if (hours) payload.tiempo_estimado_horas = hours }
+    if (kind === 'tipos-prenda') payload.precio = Number(values.get('precio'))
+    if (kind === 'servicios') { const hours = Number(values.get('tiempo_estimado_horas')); if (hours) payload.tiempo_estimado_horas = hours }
     if (!payload.nombre) { setError('El nombre es obligatorio.'); setSaving(false); return }
-    if (kind === 'servicios' && (!payload.precio_base || payload.precio_base <= 0)) { setError('El precio debe ser mayor que cero.'); setSaving(false); return }
+    if (kind === 'tipos-prenda') {
+      const rawPrice = String(values.get('precio') ?? '').trim()
+      if (!rawPrice || !Number.isFinite(payload.precio) || !payload.precio || payload.precio <= 0 || payload.precio > 99999999.99) { setError('El precio debe ser mayor que cero y no superar Q99,999,999.99.'); setSaving(false); return }
+      if (!/^\d+(?:\.\d{1,2})?$/.test(rawPrice)) { setError('El precio debe tener como máximo 2 decimales.'); setSaving(false); return }
+    }
     try { if (item) await updateCatalog(kind, item.id, payload); else await createCatalog(kind, payload); onSaved(`${config[kind].singular[0].toUpperCase()}${config[kind].singular.slice(1)} ${item ? 'actualizado' : 'creado'} correctamente.`) }
     catch (e) { setError(errorMessage(e)) } finally { setSaving(false) }
   }
-  return <form className="catalog-form" onSubmit={submit}>
-    <label>Nombre *<input name="nombre" defaultValue={item?.nombre} maxLength={100} required /></label>
-    {kind !== 'metodos-pago' && <label>Descripción<textarea name="descripcion" defaultValue={servicio?.descripcion ?? tipo?.descripcion ?? ''} maxLength={500} rows={3}/></label>}
-    {kind === 'servicios' && <div className="form-grid"><label>Precio base *<input name="precio_base" type="number" min="0.01" step="0.01" defaultValue={servicio?.precio_base} required /></label><label>Tiempo estimado (horas)<input name="tiempo_estimado_horas" type="number" min="1" step="1" defaultValue={servicio?.tiempo_estimado_horas}/></label></div>}
+  return <form className="catalog-form" onSubmit={submit} noValidate={kind === 'tipos-prenda'}>
+    <label>Nombre *<input name="nombre" defaultValue={item?.nombre} maxLength={kind === 'tipos-prenda' ? 50 : 100} required /></label>
+    {kind !== 'metodos-pago' && <label>Descripción<textarea name="descripcion" defaultValue={servicio?.descripcion ?? tipo?.descripcion ?? ''} maxLength={kind === 'tipos-prenda' ? 255 : 500} rows={3}/></label>}
+    {kind === 'tipos-prenda' && <label>Precio (Q) *<input name="precio" type="number" min="0.01" max="99999999.99" step="0.01" defaultValue={tipo?.precio ?? ''} required /></label>}
+    {kind === 'servicios' && <div className="form-grid"><label>Tiempo estimado (horas)<input name="tiempo_estimado_horas" type="number" min="1" step="1" defaultValue={servicio?.tiempo_estimado_horas}/></label></div>}
     {error && <div className="alert error">{error}</div>}<footer><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary" disabled={saving}>{saving ? 'Guardando…' : `Guardar ${config[kind].singular}`}</button></footer>
   </form>
 }
@@ -63,8 +69,8 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     {success && <div className="alert success">{success}</div>}{error && <div className="alert error"><span>{error}</span><button onClick={load}><RefreshCw size={16}/> Reintentar</button></div>}
     <section className="catalog-card">
       {catalogLoading ? <div className="state"><span className="spinner"/>Cargando {meta.title.toLowerCase()}…</div> : !items.length ? <div className="state"><Shirt size={40}/><b>Aún no hay {meta.title.toLowerCase()}</b><span>Crea el primer registro para comenzar.</span></div> :
-      <div className="table-scroll"><table><thead><tr><th>{kind === 'tipos-prenda' ? 'Tipo' : kind === 'servicios' ? 'Servicio' : 'Método'}</th>{kind !== 'metodos-pago' && <th>Descripción</th>}{kind === 'servicios' && <><th>Precio base</th><th>Tiempo est.</th></>}<th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>
-        <tbody>{items.map((item) => { const service = item as Servicio; const described = item as TipoPrenda; return <tr key={item.id}><td className="entity-name"><span className="entity-icon"><Shirt size={18}/></span>{item.nombre}</td>{kind !== 'metodos-pago' && <td>{described.descripcion || '—'}</td>}{kind === 'servicios' && <><td className="money">Q{Number(service.precio_base ?? 0).toFixed(2)}</td><td>{service.tiempo_estimado_horas ? `${service.tiempo_estimado_horas} h` : '—'}</td></>}<td><span className={`badge ${item.activo ? 'active' : ''}`}>{item.activo ? 'Activo' : 'Inactivo'}</span></td>{isAdmin && <td className="actions"><button onClick={() => setEditing(item)}><Edit3 size={16}/>Editar</button><button onClick={() => void toggle(item)}>{item.activo ? 'Desactivar' : 'Activar'}</button></td>}</tr> })}</tbody>
+      <div className="table-scroll"><table><thead><tr><th>{kind === 'tipos-prenda' ? 'Tipo' : kind === 'servicios' ? 'Servicio' : 'Método'}</th>{kind !== 'metodos-pago' && <th>Descripción</th>}{kind === 'tipos-prenda' && <th>Precio (Q)</th>}{kind === 'servicios' && <th>Tiempo est.</th>}<th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>
+        <tbody>{items.map((item) => { const service = item as Servicio; const described = item as TipoPrenda; return <tr key={item.id}><td className="entity-name"><span className="entity-icon"><Shirt size={18}/></span>{item.nombre}</td>{kind !== 'metodos-pago' && <td>{described.descripcion || '—'}</td>}{kind === 'tipos-prenda' && <td className="money">{described.precio == null ? 'Pendiente de configurar' : `Q${described.precio.toFixed(2)}`}</td>}{kind === 'servicios' && <td>{service.tiempo_estimado_horas ? `${service.tiempo_estimado_horas} h` : '—'}</td>}<td><span className={`badge ${item.activo ? 'active' : ''}`}>{item.activo ? 'Activo' : 'Inactivo'}</span></td>{isAdmin && <td className="actions"><button onClick={() => setEditing(item)}><Edit3 size={16}/>Editar</button><button onClick={() => void toggle(item)}>{item.activo ? 'Desactivar' : 'Activar'}</button></td>}</tr> })}</tbody>
       </table></div>}
     </section>
     {editing !== undefined && <Modal title={`${editing ? 'Editar' : 'Nuevo'} ${meta.singular}`} onClose={() => setEditing(undefined)}><CatalogForm kind={kind} item={editing} onClose={() => setEditing(undefined)} onSaved={(message) => { setEditing(undefined); setSuccess(message); void load() }}/></Modal>}
