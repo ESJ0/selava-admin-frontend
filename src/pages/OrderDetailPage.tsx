@@ -8,10 +8,13 @@ import { OrderTimeline } from '../components/OrderTimeline'
 import { PaymentPanel } from '../components/PaymentPanel'
 import { useAuth } from '../store/auth'
 import { useOrderData } from '../hooks/useOrderData'
+import { chargeSubtotal } from '../utils/chargePricing'
 
 const date = new Intl.DateTimeFormat('es-GT', { dateStyle: 'medium' })
 const money = new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' })
 const stateClass = (name: string) => name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-')
+const chargeMode = (garment: { modalidad_cobro_aplicada?: string; tipo_prenda?: { modalidad_cobro?: string } }) => garment.modalidad_cobro_aplicada ?? 'UNIDAD'
+const measureUnit = (mode: string, value: number) => mode === 'LIBRA' ? (value === 1 ? 'libra' : 'libras') : mode === 'METRO' ? (value === 1 ? 'metro' : 'metros') : (value === 1 ? 'unidad' : 'unidades')
 
 export function OrderDetailPage({ operatorMode = false }: { operatorMode?: boolean }) {
   const rawId = useParams().pedidoId
@@ -90,11 +93,11 @@ function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operat
       <div className="order-main-column">
         <section className="detail-card client-card"><header><UserRound size={20}/><h2>Cliente</h2></header><div className="client-detail"><span className="avatar">{order.cliente.nombre[0]}{order.cliente.apellido[0]}</span><div><strong>{order.cliente.nombre} {order.cliente.apellido}</strong><span>{order.cliente.telefono}{order.cliente.email ? ` · ${order.cliente.email}` : ''}</span>{order.cliente.direccion && <small>{order.cliente.direccion}</small>}</div></div></section>
 
-        <section className="detail-card"><header><Shirt size={20}/><h2>Prendas y servicios</h2><span className="count-pill">{order.prendas.reduce((sum, garment) => sum + garment.cantidad, 0)} prendas</span></header>
+        <section className="detail-card"><header><Shirt size={20}/><h2>Prendas y servicios</h2><span className="count-pill">{order.prendas.length} registros</span></header>
           {!order.prendas.length && <p className="empty-block">Este pedido no tiene prendas registradas.</p>}
           <div className="garment-detail-list">{order.prendas.map(garment => <article key={garment.id}>
-            <div className="garment-title"><span className="garment-icon"><Shirt size={20}/></span><div><strong>{garment.tipo_prenda?.nombre ?? `Prenda ${garment.id}`} × {garment.cantidad}</strong><small>{[garment.color, garment.descripcion].filter(Boolean).join(' · ') || 'Sin observaciones'}</small></div></div>
-            <div className="service-detail-list">{garment.precio_aplicado != null && <div><span>Precio aplicado a la prenda<small className="unit-price">{money.format(garment.precio_aplicado)} × {garment.cantidad}</small></span><b>{money.format(garment.precio_aplicado * garment.cantidad)}</b></div>}{garment.servicios.length ? garment.servicios.map(item => <div key={item.id}><span>{item.servicio?.nombre ?? `Servicio ${item.servicio_id}`}{garment.precio_aplicado == null && <small className="unit-price">{money.format(item.precio_aplicado)} por unidad × {garment.cantidad}</small>}</span>{garment.precio_aplicado == null && <b>{money.format(item.precio_aplicado * garment.cantidad)}</b>}</div>) : <span className="muted">Sin servicios asociados</span>}</div>
+            <div className="garment-title"><span className="garment-icon"><Shirt size={20}/></span><div><strong>{garment.tipo_prenda?.nombre ?? `Prenda ${garment.id}`}</strong><small>{garment.cantidad} {measureUnit(chargeMode(garment), garment.cantidad)}{[garment.color, garment.descripcion].filter(Boolean).length ? ` · ${[garment.color, garment.descripcion].filter(Boolean).join(' · ')}` : ''}</small></div></div>
+            <div className="service-detail-list">{garment.precio_aplicado != null && <div><span>Precio aplicado<small className="unit-price">{garment.cantidad} {measureUnit(chargeMode(garment), garment.cantidad)} × {money.format(garment.precio_aplicado)} por {measureUnit(chargeMode(garment), 1)}</small></span><b>{money.format(chargeSubtotal(garment.precio_aplicado, garment.cantidad))}</b></div>}{garment.servicios.length ? garment.servicios.map(item => <div key={item.id}><span>{item.servicio?.nombre ?? `Servicio ${item.servicio_id}`}{garment.precio_aplicado == null && <small className="unit-price">{money.format(item.precio_aplicado)} por unidad × {garment.cantidad}</small>}</span>{garment.precio_aplicado == null && <b>{money.format(item.precio_aplicado * garment.cantidad)}</b>}</div>) : <span className="muted">Sin servicios asociados</span>}</div>
           </article>)}</div>
           <footer className="detail-total"><span>Total del pedido</span><strong>{money.format(order.total)}</strong></footer>
         </section>
