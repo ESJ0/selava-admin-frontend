@@ -4,6 +4,7 @@ import { errorMessage } from '../api/client'
 import { listClients } from '../api/clients'
 import { createOrder, listGarmentTypes, listServices } from '../api/orders'
 import { GarmentServiceSelector } from '../components/GarmentServiceSelector'
+import { chargeSubtotal } from '../utils/chargePricing'
 import type { Cliente, ModalidadCobro, PrendaDetalleDraft, PrendaDraft, Servicio, TipoPrenda } from '../types'
 
 const blankDetail = (): PrendaDetalleDraft => ({ cantidad: 1, color: '', descripcion: '', servicio_ids: [] })
@@ -13,7 +14,7 @@ const steps = ['Cliente', 'Prendas y servicios', 'Fecha', 'Resumen']
 const modalidadDe = (type?: TipoPrenda): ModalidadCobro => type?.modalidad_cobro ?? 'UNIDAD'
 const etiquetaMedida = (modalidad: ModalidadCobro) => modalidad === 'LIBRA' ? 'Peso en libras' : modalidad === 'METRO' ? 'Metros' : 'Cantidad'
 const unidadMedida = (modalidad: ModalidadCobro, cantidad: number) => modalidad === 'LIBRA' ? (cantidad === 1 ? 'libra' : 'libras') : modalidad === 'METRO' ? (cantidad === 1 ? 'metro' : 'metros') : (cantidad === 1 ? 'unidad' : 'unidades')
-const medidaValida = (cantidad: number | '', modalidad: ModalidadCobro) => typeof cantidad === 'number' && Number.isFinite(cantidad) && cantidad > 0 && cantidad <= 99999999.999 && Math.abs(cantidad * 1000 - Math.round(cantidad * 1000)) < 0.000001 && (modalidad !== 'UNIDAD' || (Number.isInteger(cantidad) && cantidad <= 50))
+const medidaValida = (cantidad: number | '', modalidad: ModalidadCobro) => typeof cantidad === 'number' && Number.isFinite(cantidad) && cantidad > 0 && cantidad <= 99999999.999 && /^\d+(?:\.\d{1,3})?$/.test(String(cantidad)) && (modalidad !== 'UNIDAD' || (Number.isInteger(cantidad) && cantidad <= 50))
 
 export function NewOrderPage() {
   const [step, setStep] = useState(1)
@@ -124,7 +125,7 @@ export function NewOrderPage() {
 
   const detailRows = garments.flatMap((garment) => garment.detalles.map((detail) => ({ garment, detail })))
   const garmentSubtotal = (garment: PrendaDraft, detail: PrendaDetalleDraft) =>
-    (types.find((type) => type.id === garment.tipo_prenda_id)?.precio ?? 0) * detail.cantidad
+    chargeSubtotal(types.find((type) => type.id === garment.tipo_prenda_id)?.precio ?? 0, detail.cantidad)
   const total = detailRows.reduce((sum, { garment, detail }) => sum + Math.round(garmentSubtotal(garment, detail) * 100), 0) / 100
 
   async function submit() {

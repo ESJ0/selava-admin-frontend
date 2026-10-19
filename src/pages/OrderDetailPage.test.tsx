@@ -78,6 +78,20 @@ describe('OrderDetailPage', () => {
     mocks.registerPayment.mockResolvedValue({})
   })
 
+  it('usa modalidad congelada y redondeo decimal aun si cambió el catálogo', async () => {
+    mocks.detail.mockResolvedValue({ ...detail, prendas: [{ ...detail.prendas[0], cantidad: 0.5, precio_aplicado: 1.23, modalidad_cobro_aplicada: 'LIBRA', tipo_prenda: { ...detail.prendas[0].tipo_prenda, modalidad_cobro: 'METRO' } }] })
+    renderPage()
+    expect(await screen.findByText('0.5 libras · Azul')).toBeInTheDocument()
+    expect(screen.getByText(/0.5 libras ×.*por libra/)).toBeInTheDocument()
+    expect(document.querySelector('.garment-detail-list article')).toHaveTextContent(/Q\s*0\.62/)
+  })
+
+  it('mantiene unidades en históricos sin instantánea aunque cambie el catálogo', async () => {
+    mocks.detail.mockResolvedValue({ ...detail, prendas: [{ ...detail.prendas[0], tipo_prenda: { ...detail.prendas[0].tipo_prenda, modalidad_cobro: 'LIBRA' } }] })
+    renderPage()
+    expect(await screen.findByText('2 unidades · Azul')).toBeInTheDocument()
+  })
+
   it('muestra la tarifa congelada de la prenda y no los precios actuales del catálogo', async () => {
     mocks.detail.mockResolvedValue({ ...detail, prendas: [{ ...detail.prendas[0], precio_aplicado: 25, servicios: [{ ...detail.prendas[0].servicios[0], precio_aplicado: 0 }] }] })
     renderPage()
