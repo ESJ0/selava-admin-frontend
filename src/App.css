@@ -116,3 +116,24 @@
   .orders-list-heading > button { width: 100%; }
   .orders-pagination { justify-content: center; text-align: center; padding: 16px; }
 }
+.promotion-form fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 16px; min-width: 0; }
+.promotion-form .promotion-active { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.promotion-form .promotion-active input { width: auto; }
+.order-promotions { margin: 24px 0; padding: 18px; border: 1px solid #cbe6ef; border-radius: 14px; background: #f5fbfd; min-width: 0; }
+.order-promotions h2 { font-size: 18px; margin: 0 0 10px; }
+.order-promotions p { color: #52717f; line-height: 1.6; }
+.promotion-choice { margin-top: 18px; }
+.promotion-choice label { display: grid; gap: 8px; }
+.promotion-choice select { max-width: 100%; width: 100%; }
+.promotion-breakdown { margin-top: 14px; padding: 16px; background: white; border: 1px solid #d5e5eb; border-radius: 12px; overflow-wrap: anywhere; min-width: 0; }
+.promotion-breakdown h3 { margin: 0; font-size: 16px; }
+.promotion-breakdown dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.promotion-breakdown dt { font-size: 12px; color: #52717f; margin-bottom: 4px; }
+.promotion-breakdown dd { margin: 0; font-weight: 600; }
+@media (max-width: 600px) { .promotion-breakdown dl { grid-template-columns: 1fr; } .order-promotions { padding: 12px; } }
+.promotion-form select, .promotion-choice select { min-width: 0; border: 1px solid #d7e1ed; border-radius: 13px; padding: 12px 13px; background: #fff; }
+.order-main-column, .order-side-column, .payment-content, .payment-form, .payment-form label { min-width: 0; }
+.payment-form .form-grid { grid-template-columns: minmax(0, 1fr); }
+.payment-form input, .payment-form select { min-width: 0; width: 100%; }
+.balance-grid > span { min-width: 0; overflow-wrap: anywhere; }
+@media (min-width: 561px) { .balance-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

@@ -4,6 +4,7 @@ import { errorMessage } from '../api/client'
 import { listClients } from '../api/clients'
 import { createOrder, listGarmentTypes, listServices } from '../api/orders'
 import { GarmentServiceSelector } from '../components/GarmentServiceSelector'
+import { PromotionOrderQuote, type PromotionOrderState } from '../components/PromotionOrderQuote'
 import { chargeSubtotal } from '../utils/chargePricing'
 import type { Cliente, ModalidadCobro, PrendaDetalleDraft, PrendaDraft, Servicio, TipoPrenda } from '../types'
 
@@ -31,6 +32,7 @@ export function NewOrderPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [createdId, setCreatedId] = useState<number | null>(null)
+  const [promotionState, setPromotionState] = useState<PromotionOrderState | null>(null)
 
   useEffect(() => {
     Promise.all([listClients(), listGarmentTypes(), listServices()])
@@ -100,6 +102,7 @@ export function NewOrderPage() {
       return setError('Selecciona al menos un servicio para cada detalle de prenda.')
     }
     if (step === 3 && !deliveryDate) return setError('Selecciona una fecha de entrega.')
+    if (step === 3) setPromotionState(null)
     setStep((current) => Math.min(current + 1, 4))
   }
 
@@ -129,11 +132,11 @@ export function NewOrderPage() {
   const total = detailRows.reduce((sum, { garment, detail }) => sum + Math.round(garmentSubtotal(garment, detail) * 100), 0) / 100
 
   async function submit() {
-    if (!selected || !deliveryDate) return
+    if (!selected || !deliveryDate || !promotionState?.ready) return
     setSubmitting(true)
     setError('')
     try {
-      const order = await createOrder(selected.id, deliveryDate, observations, garments)
+      const order = await createOrder(selected.id, deliveryDate, observations, garments, promotionState.selections)
       setCreatedId(order.id)
     } catch (requestError) {
       setError(errorMessage(requestError))
@@ -144,6 +147,7 @@ export function NewOrderPage() {
 
   function resetForNewOrder() {
     setCreatedId(null)
+    setPromotionState(null)
     setStep(1)
     setSelected(null)
     setSearch('')
@@ -222,14 +226,15 @@ export function NewOrderPage() {
         </div>)}
         <div className="delivery-summary"><small>Fecha de entrega</small><b>{new Date(`${deliveryDate}T12:00:00`).toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
         <label className="observations-field">Observaciones del pedido<input value={observations} onChange={(event) => setObservations(event.target.value)} placeholder="Instrucciones especiales…" /></label>
-        <div className="order-total"><span>Total estimado</span><strong>Q{total.toFixed(2)}</strong></div>
+        <PromotionOrderQuote garments={garments} onStatus={setPromotionState} />
+        <div className="order-total"><span>Total estimado{promotionState ? '' : ' · calculando'}</span><strong>{promotionState ? `Q${promotionState.quote.total.toFixed(2)}` : `Q${total.toFixed(2)} (sin promociones)`}</strong></div>
       </>}
 
       {notice && <div className="alert success" role="status">{notice}</div>}
       {error && <div className="alert error">{error}</div>}
       <footer>
         {step > 1 ? <button className="secondary" onClick={() => { setError(''); setNotice(''); setStep((current) => current - 1) }}><ChevronLeft size={18} />Anterior</button> : <span />}
-        {step < 4 ? <button className="primary" onClick={next}>Siguiente<ChevronRight size={18} /></button> : <button className="primary" onClick={() => void submit()} disabled={submitting}><Check size={18} />{submitting ? 'Creando…' : 'Crear pedido'}</button>}
+        {step < 4 ? <button className="primary" onClick={next}>Siguiente<ChevronRight size={18} /></button> : <button className="primary" onClick={() => void submit()} disabled={submitting || !promotionState?.ready}><Check size={18} />{submitting ? 'Creando…' : 'Crear pedido'}</button>}
       </footer>
     </section>
   </section>

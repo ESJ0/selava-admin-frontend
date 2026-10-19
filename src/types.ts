@@ -159,6 +159,7 @@ export interface MovimientoInventarioCreatePayload {
 }
 
 export interface PedidoDetalle {
+  promociones_aplicadas?: import('./types/promotion').AppliedPromotion[]
   id: number
   cliente_id: number
   usuario_id: number

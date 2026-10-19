@@ -6,6 +6,7 @@ import { ClientDetailPage } from './pages/ClientDetailPage'
 import { LoginPage } from './pages/LoginPage'
 import { InventoryPage } from './pages/InventoryPage'
 import { NewOrderPage } from './pages/NewOrderPage'
+import { PromotionsPage } from './pages/PromotionsPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
 import { OrderLookupPage } from './pages/OrderLookupPage'
 import { OrdersByStatusReportPage } from './pages/OrdersByStatusReportPage'
@@ -23,6 +24,7 @@ function AdminApp() {
     <Route path="/clientes" element={<ClientsPage />} />
     <Route path="/clientes/:clientId" element={<ClientDetailPage />} />
     <Route path="/tipos-prenda" element={<CatalogPage kind="tipos-prenda" />} />
+    <Route path="/promociones" element={roleId === 3 ? <Navigate to="/pedidos" replace /> : <PromotionsPage />} />
     <Route path="/metodos-pago" element={<CatalogPage kind="metodos-pago" />} />
     <Route path="/insumos" element={roleId === 3 ? <Navigate to="/pedidos" replace /> : <InventoryPage />} />
     <Route path="/pedidos/nuevo" element={<NewOrderPage />} />
