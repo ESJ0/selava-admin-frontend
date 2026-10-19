@@ -4,11 +4,16 @@ import { errorMessage } from '../api/client'
 import { listClients } from '../api/clients'
 import { createOrder, listGarmentTypes, listServices } from '../api/orders'
 import { GarmentServiceSelector } from '../components/GarmentServiceSelector'
-import type { Cliente, PrendaDetalleDraft, PrendaDraft, Servicio, TipoPrenda } from '../types'
+import type { Cliente, ModalidadCobro, PrendaDetalleDraft, PrendaDraft, Servicio, TipoPrenda } from '../types'
 
 const blankDetail = (): PrendaDetalleDraft => ({ cantidad: 1, color: '', descripcion: '', servicio_ids: [] })
 const blankGarment = (): PrendaDraft => ({ tipo_prenda_id: '', cantidad: 1, aplicar_servicio_comun: false, servicio_ids_comunes: [], detalles: [blankDetail()] })
 const steps = ['Cliente', 'Prendas y servicios', 'Fecha', 'Resumen']
+
+const modalidadDe = (type?: TipoPrenda): ModalidadCobro => type?.modalidad_cobro ?? 'UNIDAD'
+const etiquetaMedida = (modalidad: ModalidadCobro) => modalidad === 'LIBRA' ? 'Peso en libras' : modalidad === 'METRO' ? 'Metros' : 'Cantidad'
+const unidadMedida = (modalidad: ModalidadCobro, cantidad: number) => modalidad === 'LIBRA' ? (cantidad === 1 ? 'libra' : 'libras') : modalidad === 'METRO' ? (cantidad === 1 ? 'metro' : 'metros') : (cantidad === 1 ? 'unidad' : 'unidades')
+const medidaValida = (cantidad: number | '', modalidad: ModalidadCobro) => typeof cantidad === 'number' && Number.isFinite(cantidad) && cantidad > 0 && cantidad <= 99999999.999 && Math.abs(cantidad * 1000 - Math.round(cantidad * 1000)) < 0.000001 && (modalidad !== 'UNIDAD' || (Number.isInteger(cantidad) && cantidad <= 50))
 
 export function NewOrderPage() {
   const [step, setStep] = useState(1)
@@ -58,6 +63,11 @@ export function NewOrderPage() {
     const cantidad = value === '' ? '' : Number(value)
     setGarments((current) => current.map((garment, index) => {
       if (index !== garmentIndex) return garment
+	  const modalidad = modalidadDe(types.find((type) => type.id === garment.tipo_prenda_id))
+	  if (modalidad !== 'UNIDAD') {
+	    const detail = garment.detalles[0] ?? blankDetail()
+	    return { ...garment, cantidad, detalles: [{ ...detail, cantidad: typeof cantidad === 'number' ? cantidad : 0 }] }
+	  }
       if (typeof cantidad !== 'number' || !Number.isInteger(cantidad) || cantidad < 1 || cantidad > 50) return { ...garment, cantidad }
       const details = garment.detalles.slice(0, cantidad)
       while (details.length < cantidad) {
@@ -67,12 +77,20 @@ export function NewOrderPage() {
     }))
   }
 
+  function changeGarmentType(garmentIndex: number, value: string) {
+	const tipoPrendaID = Number(value) || ''
+	updateGarment(garmentIndex, { tipo_prenda_id: tipoPrendaID, cantidad: 1, aplicar_servicio_comun: false, servicio_ids_comunes: [], detalles: [blankDetail()] })
+  }
+
   function next() {
     setError('')
     setNotice('')
     if (step === 1 && !selected) return setError('Selecciona un cliente para continuar.')
-    if (step === 2 && garments.some((garment) => !garment.tipo_prenda_id || typeof garment.cantidad !== 'number' || !Number.isInteger(garment.cantidad) || garment.cantidad < 1 || garment.cantidad > 50 || garment.detalles.length !== garment.cantidad)) {
-      return setError('Selecciona el tipo y una cantidad entre 1 y 50 para cada tipo de prenda.')
+    if (step === 2 && garments.some((garment) => {
+	  const modalidad = modalidadDe(types.find((type) => type.id === garment.tipo_prenda_id))
+	  return !garment.tipo_prenda_id || !medidaValida(garment.cantidad, modalidad) || (modalidad === 'UNIDAD' ? garment.detalles.length !== garment.cantidad : garment.detalles.length !== 1 || garment.detalles[0]?.cantidad !== garment.cantidad)
+	})) {
+      return setError('Ingresa una cantidad entera para cobro por unidad o una medida decimal positiva para libras y metros.')
     }
     if (step === 2 && garments.some((garment) => !types.find((type) => type.id === garment.tipo_prenda_id)?.precio)) {
       return setError('Configura el precio de cada tipo de prenda antes de continuar.')
@@ -169,14 +187,14 @@ export function NewOrderPage() {
         {garments.map((garment, garmentIndex) => <section className="garment garment-group" key={garmentIndex}>
           <header><b>Tipo de prenda {garmentIndex + 1}</b>{garments.length > 1 && <button className="danger-link" onClick={() => setGarments((current) => current.filter((_, index) => index !== garmentIndex))}><Trash2 size={17}/>Eliminar tipo</button>}</header>
           <div className="garment-basics">
-            <label>Tipo de prenda *<select value={garment.tipo_prenda_id} onChange={(event) => updateGarment(garmentIndex, { tipo_prenda_id: Number(event.target.value) || '' })}><option value="">Seleccionar tipo</option>{types.map((type) => <option key={type.id} value={type.id} disabled={type.precio == null}>{type.nombre} — {type.precio == null ? 'Precio pendiente' : `Q${type.precio.toFixed(2)}`}</option>)}</select></label>
-            <label>Cantidad *<input aria-label={`Cantidad de ${garmentIndex === 0 ? 'prendas' : `prendas del tipo ${garmentIndex + 1}`}`} type="number" min="1" max="50" step="1" value={garment.cantidad} onChange={(event) => changeGarmentQuantity(garmentIndex, event.target.value)}/></label>
+            <label>Tipo de prenda *<select value={garment.tipo_prenda_id} onChange={(event) => changeGarmentType(garmentIndex, event.target.value)}><option value="">Seleccionar tipo</option>{types.map((type) => <option key={type.id} value={type.id} disabled={type.precio == null}>{type.nombre} — {type.precio == null ? 'Precio pendiente' : `Q${type.precio.toFixed(2)} por ${unidadMedida(modalidadDe(type), 1)}`}</option>)}</select></label>
+            {(() => { const modalidad = modalidadDe(types.find((type) => type.id === garment.tipo_prenda_id)); return <label>{etiquetaMedida(modalidad)} *<input aria-label={modalidad === 'UNIDAD' ? `Cantidad de ${garmentIndex === 0 ? 'prendas' : `prendas del tipo ${garmentIndex + 1}`}` : etiquetaMedida(modalidad)} type="number" min={modalidad === 'UNIDAD' ? 1 : 0.001} max={modalidad === 'UNIDAD' ? 50 : 99999999.999} step={modalidad === 'UNIDAD' ? 1 : 0.001} value={garment.cantidad} onChange={(event) => changeGarmentQuantity(garmentIndex, event.target.value)}/></label> })()}
           </div>
           <label className="common-service-option"><input type="checkbox" checked={garment.aplicar_servicio_comun} onChange={(event) => updateGarment(garmentIndex, { aplicar_servicio_comun: event.target.checked, ...(!event.target.checked && { servicio_ids_comunes: [] }) })}/><b>Aplicar los mismos servicios a este tipo de prenda</b></label>
           {garment.aplicar_servicio_comun && <section className="type-common-services"><GarmentServiceSelector services={services} selectedIds={garment.servicio_ids_comunes} onToggle={(serviceId) => toggleCommonService(garmentIndex, serviceId)}/></section>}
-          <div className="detail-heading"><div><b>Detalle individual</b><small>Completa color, observaciones y servicios de cada prenda.</small></div><span>{garment.detalles.length} prendas</span></div>
+          <div className="detail-heading"><div><b>Detalle del servicio</b><small>Completa color, observaciones y servicios.</small></div><span>{modalidadDe(types.find((type) => type.id === garment.tipo_prenda_id)) === 'UNIDAD' ? `${garment.detalles.length} prendas` : `${garment.cantidad || 0} ${unidadMedida(modalidadDe(types.find((type) => type.id === garment.tipo_prenda_id)), Number(garment.cantidad) || 0)}`}</span></div>
           {garment.detalles.map((detail, detailIndex) => <section className="garment-detail" key={detailIndex}>
-            <header><b>Prenda {detailIndex + 1} de {garment.cantidad}</b></header>
+            <header><b>{modalidadDe(types.find((type) => type.id === garment.tipo_prenda_id)) === 'UNIDAD' ? `Prenda ${detailIndex + 1} de ${garment.cantidad}` : `${etiquetaMedida(modalidadDe(types.find((type) => type.id === garment.tipo_prenda_id)))}: ${detail.cantidad} ${unidadMedida(modalidadDe(types.find((type) => type.id === garment.tipo_prenda_id)), detail.cantidad)}`}</b></header>
             <div className="form-grid">
               <label>Color<input value={detail.color} maxLength={30} onChange={(event) => updateDetail(garmentIndex, detailIndex, { color: event.target.value })} placeholder="Blanco, azul…"/></label>
               <label>Observaciones<input value={detail.descripcion} maxLength={255} onChange={(event) => updateDetail(garmentIndex, detailIndex, { descripcion: event.target.value })} placeholder="Manchas, instrucciones…"/></label>
@@ -198,8 +216,8 @@ export function NewOrderPage() {
         <p>Revisa las prendas y sus servicios antes de crear el pedido.</p>
         <div className="summary-client"><small>Cliente</small><b>{selected?.nombre} {selected?.apellido}</b><span>{selected?.telefono}</span></div>
         {detailRows.map(({ garment, detail }, index) => <div className="summary-garment" key={index}>
-          <span><b>{types.find((type) => type.id === garment.tipo_prenda_id)?.nombre} × {detail.cantidad}</b><small>{[detail.color, detail.servicio_ids.map((id) => services.find((service) => service.id === id)?.nombre).filter(Boolean).join(', ')].filter(Boolean).join(' · ')}</small></span>
-          <b>Q{garmentSubtotal(garment, detail).toFixed(2)}</b>
+          <span><b>{types.find((type) => type.id === garment.tipo_prenda_id)?.nombre}</b><small>{detail.cantidad} {unidadMedida(modalidadDe(types.find((type) => type.id === garment.tipo_prenda_id)), detail.cantidad)} × Q{(types.find((type) => type.id === garment.tipo_prenda_id)?.precio ?? 0).toFixed(2)} por {unidadMedida(modalidadDe(types.find((type) => type.id === garment.tipo_prenda_id)), 1)}{[detail.color, detail.servicio_ids.map((id) => services.find((service) => service.id === id)?.nombre).filter(Boolean).join(', ')].filter(Boolean).length ? ` · ${[detail.color, detail.servicio_ids.map((id) => services.find((service) => service.id === id)?.nombre).filter(Boolean).join(', ')].filter(Boolean).join(' · ')}` : ''}</small></span>
+          <b>Subtotal Q{garmentSubtotal(garment, detail).toFixed(2)}</b>
         </div>)}
         <div className="delivery-summary"><small>Fecha de entrega</small><b>{new Date(`${deliveryDate}T12:00:00`).toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
         <label className="observations-field">Observaciones del pedido<input value={observations} onChange={(event) => setObservations(event.target.value)} placeholder="Instrucciones especiales…" /></label>

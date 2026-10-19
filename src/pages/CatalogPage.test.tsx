@@ -8,7 +8,7 @@ import { useAuth } from '../store/auth'
 const mocks = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), update: vi.fn(), deactivate: vi.fn() }))
 vi.mock('../api/catalogs', () => ({ listCatalog: mocks.list, createCatalog: mocks.create, updateCatalog: mocks.update, deactivateCatalog: mocks.deactivate }))
 
-const shirt = { id: 2, nombre: 'Camisa', descripcion: 'Manga larga', precio: 25, activo: true }
+const shirt = { id: 2, nombre: 'Camisa', descripcion: 'Manga larga', precio: 25, modalidad_cobro: 'UNIDAD', activo: true }
 describe('CatalogPage SEL-107', () => {
   beforeEach(() => {
     vi.resetAllMocks(); useAuth.setState({ roleId: 1 })
@@ -19,10 +19,10 @@ describe('CatalogPage SEL-107', () => {
     expect(await screen.findByText('Q25.00')).toBeInTheDocument()
     expect(screen.getByText('Activo')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /editar/i }))
-    const price = screen.getByLabelText('Precio (Q) *'); expect(price).toHaveValue(25)
+    const price = screen.getByLabelText('Precio por medida (Q) *'); expect(price).toHaveValue(25)
     await user.clear(price); await user.type(price, '30.50')
     await user.click(screen.getByRole('button', { name: /guardar tipo/i }))
-    await waitFor(() => expect(mocks.update).toHaveBeenCalledWith('tipos-prenda', 2, { nombre: 'Camisa', descripcion: 'Manga larga', precio: 30.5 }))
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledWith('tipos-prenda', 2, { nombre: 'Camisa', descripcion: 'Manga larga', precio: 30.5, modalidad_cobro: 'UNIDAD' }))
   })
   it.each(['', '0', '-1', '25.001'])('rechaza precio inválido %s antes de guardar', async (value) => {
     const user = userEvent.setup(); render(<CatalogPage kind="tipos-prenda" />)
@@ -37,7 +37,7 @@ describe('CatalogPage SEL-107', () => {
     await screen.findByText('Camisa'); await user.click(screen.getByRole('button', { name: /nuevo tipo/i }))
     await user.type(screen.getByLabelText(/nombre/i), 'Pantalón'); await user.type(screen.getByLabelText(/precio/i), '30.25')
     await user.click(screen.getByRole('button', { name: /guardar tipo/i }))
-    await waitFor(() => expect(mocks.create).toHaveBeenCalledWith('tipos-prenda', { nombre: 'Pantalón', descripcion: '', precio: 30.25 }))
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledWith('tipos-prenda', { nombre: 'Pantalón', descripcion: '', precio: 30.25, modalidad_cobro: 'UNIDAD' }))
   })
   it('muestra errores de precio devueltos por el backend', async () => {
     const user = userEvent.setup()
