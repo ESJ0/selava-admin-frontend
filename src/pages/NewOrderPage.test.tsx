@@ -2,7 +2,9 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { createOrder, listGarmentTypes } from '../api/orders'
+import { quotePromotions } from '../api/promotions'
 import { NewOrderPage } from './NewOrderPage'
+import { applied, group } from '../test/promotionFixtures'
 
 vi.mock('../api/orders', () => ({
   listGarmentTypes: vi.fn().mockResolvedValue([{ id: 2, nombre: 'Camisa', descripcion: '', precio: 25, modalidad_cobro: 'UNIDAD', activo: true }]),
@@ -12,6 +14,7 @@ vi.mock('../api/orders', () => ({
 vi.mock('../api/clients', () => ({
   listClients: vi.fn().mockResolvedValue([{ id: 1, nombre: 'Ana', apellido: 'Martínez', telefono: '5555', activo: true }]),
 }))
+vi.mock('../api/promotions', () => ({ quotePromotions: vi.fn().mockResolvedValue({ grupos: [], total: 25 }) }))
 
 async function openGarmentsStep(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: /ana martínez/i }))
@@ -19,6 +22,19 @@ async function openGarmentsStep(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('NewOrderPage', () => {
+  it('aplica el paquete a cinco unidades y guarda solo la selección cotizada por el backend', async () => {
+    vi.mocked(quotePromotions).mockResolvedValueOnce({ grupos: [group], total: 125 }).mockResolvedValueOnce({ grupos: [{ ...group, aplicada: applied, subtotal_total: 105 }], total: 105 })
+    const user = userEvent.setup()
+    render(<NewOrderPage />); await openGarmentsStep(user)
+    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '2')
+    await user.clear(screen.getByLabelText('Cantidad de prendas')); await user.type(screen.getByLabelText('Cantidad de prendas'), '5')
+    await user.click(screen.getByRole('checkbox', { name: /aplicar los mismos servicios/i })); await user.click(screen.getByRole('checkbox', { name: 'Lavado' })); await user.click(screen.getByRole('checkbox', { name: 'Planchado' }))
+    await user.click(screen.getByRole('button', { name: /siguiente/i })); await user.type(screen.getByLabelText(/fecha de entrega/i), '2026-12-01'); await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    await user.selectOptions(await screen.findByLabelText('Promoción para Camisa'), '8')
+    expect(await within(document.querySelector('.order-total') as HTMLElement).findByText('Q105.00')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Crear pedido' }))
+    expect(createOrder).toHaveBeenLastCalledWith(1, '2026-12-01', '', [expect.objectContaining({ detalles: expect.arrayContaining([expect.objectContaining({ cantidad: 1, servicio_ids: [3, 5] })]) })], [{ tipo_prenda_id: 2, promocion_id: 8 }])
+  })
   it.each([
     ['UNIDAD', 'Cantidad de prendas', '1.5'],
     ['LIBRA', 'Peso en libras', '0'],
@@ -39,6 +55,7 @@ describe('NewOrderPage', () => {
   })
 
   it('el resumen redondea medio centavo por línea igual que PostgreSQL', async () => {
+    vi.mocked(quotePromotions).mockResolvedValueOnce({ grupos: [], total: 0.62 })
     vi.mocked(listGarmentTypes).mockResolvedValueOnce([{ id: 2, nombre: 'Peso', precio: 1.23, modalidad_cobro: 'LIBRA', activo: true }])
     const user = userEvent.setup()
     render(<NewOrderPage />)
@@ -51,10 +68,11 @@ describe('NewOrderPage', () => {
     await user.type(screen.getByLabelText(/fecha de entrega/i), '2026-12-01')
     await user.click(screen.getByRole('button', { name: /siguiente/i }))
     expect(screen.getByText('Subtotal Q0.62')).toBeInTheDocument()
-    expect(within(document.querySelector('.order-total') as HTMLElement).getByText('Q0.62')).toBeInTheDocument()
+    expect(await within(document.querySelector('.order-total') as HTMLElement).findByText('Q0.62')).toBeInTheDocument()
   })
 
   it('cobra cada prenda una sola vez aunque incluya varios servicios', async () => {
+    vi.mocked(quotePromotions).mockResolvedValueOnce({ grupos: [], total: 50 })
     const user = userEvent.setup()
     render(<NewOrderPage />)
     await openGarmentsStep(user)
@@ -68,7 +86,7 @@ describe('NewOrderPage', () => {
     await user.click(screen.getByRole('button', { name: /siguiente/i }))
     await user.type(screen.getByLabelText(/fecha de entrega/i), '2026-12-01')
     await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    expect(within(document.querySelector('.order-total') as HTMLElement).getByText('Q50.00')).toBeInTheDocument()
+    expect(await within(document.querySelector('.order-total') as HTMLElement).findByText('Q50.00')).toBeInTheDocument()
     expect(document.querySelectorAll('.summary-garment')).toHaveLength(2)
     expect(screen.getAllByText(/Subtotal Q25\.00/)).toHaveLength(2)
   })
@@ -117,6 +135,7 @@ describe('NewOrderPage', () => {
       '2026-09-01',
       '',
       [expect.objectContaining({ tipo_prenda_id: 2, cantidad: 1, detalles: [expect.objectContaining({ cantidad: 1, servicio_ids: [3] })] })],
+      [],
     )
     expect(await screen.findByText('Pedido creado correctamente')).toBeInTheDocument()
   })
@@ -164,6 +183,7 @@ describe('NewOrderPage', () => {
   })
 
   it('adapta medida, validación y resumen para libras y metros combinados', async () => {
+    vi.mocked(quotePromotions).mockResolvedValueOnce({ grupos: [], total: 87.5 })
     vi.mocked(listGarmentTypes).mockResolvedValueOnce([
       { id: 2, nombre: 'Camisa', precio: 25, modalidad_cobro: 'UNIDAD', activo: true },
       { id: 3, nombre: 'Canasta', precio: 20, modalidad_cobro: 'LIBRA', activo: true },
@@ -186,13 +206,13 @@ describe('NewOrderPage', () => {
     await user.click(screen.getByRole('button', { name: /siguiente/i }))
     await user.type(screen.getByLabelText(/fecha de entrega/i), '2026-12-01')
     await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    expect(within(document.querySelector('.order-total') as HTMLElement).getByText('Q87.50')).toBeInTheDocument()
+    expect(await within(document.querySelector('.order-total') as HTMLElement).findByText('Q87.50')).toBeInTheDocument()
     expect(screen.getByText(/2\.5 libras × Q20\.00 por libra/)).toBeInTheDocument()
     expect(screen.getByText(/1\.25 metros × Q30\.00 por metro/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /crear pedido/i }))
     expect(createOrder).toHaveBeenCalledWith(1, '2026-12-01', '', [
       expect.objectContaining({ tipo_prenda_id: 3, cantidad: 2.5, detalles: [expect.objectContaining({ cantidad: 2.5 })] }),
       expect.objectContaining({ tipo_prenda_id: 4, cantidad: 1.25, detalles: [expect.objectContaining({ cantidad: 1.25 })] }),
-    ])
+    ], [])
   })
 })
