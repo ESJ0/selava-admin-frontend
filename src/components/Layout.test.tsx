@@ -16,6 +16,7 @@ describe('Layout', () => {
     expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual([
       'Clientes',
       'Tipos de prenda',
+      'Promociones',
       'Tipos de servicio',
       'Insumos',
       'Métodos de pago',

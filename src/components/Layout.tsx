@@ -5,6 +5,7 @@ import { useAuth } from '../store/auth'
 
 const catalogLinks = [
   { to: '/tipos-prenda', label: 'Tipos de prenda', icon: Shirt },
+  { to: '/promociones', label: 'Promociones', icon: Sparkles },
   { to: '/servicios', label: 'Tipos de servicio', icon: Sparkles },
   { to: '/insumos', label: 'Insumos', icon: Boxes },
   { to: '/metodos-pago', label: 'Métodos de pago', icon: CreditCard },

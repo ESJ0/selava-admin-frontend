@@ -1,0 +1,5 @@
+import type { AppliedPromotion, Promotion, PromotionQuoteGroup } from '../types/promotion'
+
+export const promotion: Promotion = { id: 8, nombre: 'Dos por cuarenta', descripcion: 'Paquete de prueba', tipo_prenda_id: 2, tipo_prenda_nombre: 'Camisa', modalidad_cobro: 'UNIDAD', medida_requerida: 2, precio_promocional: 40, fecha_inicio: '2020-01-01T00:00:00Z', fecha_fin: '2099-01-01T00:00:00Z', activo: true, created_at: '', updated_at: '' }
+export const applied: AppliedPromotion = { promocion_id: 8, nombre: 'Dos por cuarenta', descripcion: '', tipo_prenda_id: 2, tipo_prenda_nombre: 'Camisa histórica', modalidad_cobro_aplicada: 'UNIDAD', medida_requerida: 2, precio_promocional: 40, medida_disponible: 5, aplicaciones: 2, medida_cubierta: 4, sobrante: 1, precio_normal_aplicado: 25, subtotal_promocional: 80, subtotal_normal: 25, subtotal_base: 125, subtotal_total: 105, prenda_ids: [9] }
+export const group: PromotionQuoteGroup = { tipo_prenda_id: 2, tipo_prenda_nombre: 'Camisa', modalidad_cobro: 'UNIDAD', medida: 5, precio_normal: 25, subtotal_base: 125, subtotal_total: 125, elegibles: [applied], aplicada: null }

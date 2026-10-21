@@ -4,6 +4,7 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrderDetailPage } from './OrderDetailPage'
 import { useAuth } from '../store/auth'
+import { applied } from '../test/promotionFixtures'
 
 const mocks = vi.hoisted(() => ({
   detail: vi.fn(),
@@ -56,6 +57,17 @@ function renderPage(operatorMode = false) {
 }
 
 describe('OrderDetailPage', () => {
+  it('presenta la promoción persistida aunque el catálogo tenga otro precio y modalidad', async () => {
+    useAuth.setState({ roleId: 3 })
+    mocks.detail.mockResolvedValue({ ...detail, total: 105, promociones_aplicadas: [applied] })
+    mocks.history.mockResolvedValue([]); mocks.statuses.mockResolvedValue([])
+    renderPage()
+    expect(await screen.findByText('Dos por cuarenta')).toBeInTheDocument()
+    expect(screen.getByText('4 unidades')).toBeInTheDocument()
+    expect(screen.getByText(/Q\s*80\.00/)).toBeInTheDocument()
+    expect(screen.getByText(/1 unidad × Q\s*25\.00/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Q\s*105\.00/).length).toBeGreaterThan(0)
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     useAuth.setState({ roleId: 2 })

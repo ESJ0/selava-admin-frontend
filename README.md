@@ -53,3 +53,16 @@ de prenda una sola vez por prenda; el servidor confirma y congela la tarifa.
 El detalle usa `prendas.precio_aplicado` para pedidos nuevos y conserva los importes
 por servicio en pedidos anteriores. Requiere el backend y migracion 023 de SEL-107.
 No incluye modalidades de SEL-108 ni promociones de SEL-109.
+## Promociones (SEL-109)
+
+`/promociones` permite al administrador crear, editar y activar/desactivar
+paquetes por tipo de prenda. Recepción puede consultarlos. La modalidad del
+formulario procede del tipo seleccionado; UNIDAD exige enteros y LIBRA/METRO
+admiten hasta tres decimales.
+
+En el resumen de Nuevo pedido se consulta `POST /api/pedidos/cotizacion` y se
+elige una promoción por tipo. Aplicaciones, cubiertas, sobrantes y total proceden
+del servidor. Guardar requiere una cotización válida y vuelve a comprobarla en
+backend. El detalle muestra el snapshot persistido, incluso después de editar
+o desactivar la promoción. Requiere backend SEL-109 y migración 025; no requiere
+cambios de dependencias ni nuevas variables de entorno.
