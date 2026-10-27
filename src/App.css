@@ -140,16 +140,37 @@
 
 /* SEL-110: progreso operativo calculado según los servicios del pedido. */
 .status-badge.finalizado { background: #d9f8e9; color: #007b55; }
-.progress-value { margin-left: auto; color: var(--primary); font-weight: 800; }
-.flow-progress { height: 8px; margin: 20px 24px 10px; border-radius: 999px; background: #e6edf4; overflow: hidden; }
+.progress-card { margin-bottom: 22px; }
+.order-progress-content { padding: 22px 24px 26px; }
+.progress-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--muted); }
+.progress-summary strong { color: var(--primary); font-size: 20px; }
+.flow-progress { height: 8px; margin: 10px 0 28px; border-radius: 999px; background: #e6edf4; overflow: hidden; }
 .flow-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .2s ease; }
-.operational-flow { list-style: none; margin: 0; padding: 10px 24px; display: grid; gap: 5px; }
-.operational-flow li { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; padding: 8px 0; color: #8290a4; }
-.operational-flow li > div { display: grid; gap: 2px; }
-.operational-flow small { color: var(--muted); }
-.flow-dot { width: 20px; height: 20px; margin-top: 1px; border: 2px solid #cbd7e3; border-radius: 50%; display: grid; place-items: center; }
-.operational-flow .done { color: #167b61; }
-.operational-flow .done .flow-dot { border-color: #35a47f; color: #168262; }
-.operational-flow .current { color: var(--navy); }
-.operational-flow .current .flow-dot { border: 5px solid var(--primary); }
+.order-progress-timeline { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--stage-count), minmax(112px, 1fr)); overflow-x: auto; scrollbar-width: thin; }
+.order-progress-stage { position: relative; min-width: 112px; display: grid; justify-items: center; align-content: start; gap: 10px; padding: 0 8px; text-align: center; color: #8290a4; }
+.order-progress-stage:not(:last-child)::after { content: ''; position: absolute; z-index: 0; top: 27px; left: calc(50% + 28px); width: calc(100% - 56px); height: 3px; border-radius: 999px; background: #dfe7ef; }
+.order-progress-stage.done:not(:last-child)::after { background: #73c8aa; }
+.stage-icon { position: relative; z-index: 1; width: 56px; height: 56px; border: 2px solid #d4dee8; border-radius: 18px; display: grid; place-items: center; background: #fff; color: #8b9aab; box-shadow: 0 3px 10px rgb(41 62 84 / 7%); }
+.stage-copy { display: grid; justify-items: center; gap: 3px; line-height: 1.25; }
+.stage-copy strong { color: inherit; }
+.stage-copy small { margin-top: 4px; color: #657b92; }
+.stage-status { font-size: 12px; font-weight: 700; }
+.stage-check { position: absolute; right: -5px; bottom: -5px; width: 20px; height: 20px; border: 2px solid #fff; border-radius: 50%; display: grid; place-items: center; background: #1c9b73; color: #fff; }
+.order-progress-stage.done { color: #168262; }
+.order-progress-stage.done .stage-icon { border-color: #87d4b9; background: #ebfaf4; color: #168262; }
+.order-progress-stage.current { color: var(--navy); }
+.order-progress-stage.current .stage-icon { border-color: var(--primary); background: #eaf8fd; color: var(--primary); box-shadow: 0 0 0 6px rgb(0 158 219 / 12%), 0 8px 20px rgb(0 120 170 / 18%); transform: translateY(-2px); }
+.order-progress-stage.current .stage-status { padding: 3px 8px; border-radius: 999px; background: #dff4fc; color: #007cae; }
+.order-progress-stage.pending { color: #8391a3; }
+.order-progress-stage.pending .stage-icon { background: #f7f9fb; }
 .completed-state.cancelled { background: #fff0f1; color: #a52b3d; }
+
+@media (max-width: 680px) {
+  .order-progress-content { padding: 18px 20px 22px; }
+  .flow-progress { margin-bottom: 20px; }
+  .order-progress-timeline { grid-template-columns: 1fr; gap: 0; overflow: visible; }
+  .order-progress-stage { min-width: 0; grid-template-columns: 56px minmax(0, 1fr); justify-items: stretch; align-items: start; gap: 13px; padding: 0 0 22px; text-align: left; }
+  .order-progress-stage:last-child { padding-bottom: 0; }
+  .order-progress-stage:not(:last-child)::after { top: 56px; left: 27px; width: 3px; height: calc(100% - 56px); }
+  .stage-copy { justify-items: start; padding-top: 7px; }
+}
