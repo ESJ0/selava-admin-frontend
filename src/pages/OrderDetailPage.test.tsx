@@ -165,6 +165,31 @@ describe('OrderDetailPage', () => {
     expect(screen.queryByRole('button', { name: /^cancelar pedido$/i })).not.toBeInTheDocument()
   })
 
+  it('solicita confirmación antes de avanzar a Finalizado', async () => {
+    const finalStatus = { id: 3, nombre: 'Finalizado', codigo: 'FINALIZADO', orden: 60, es_terminal: true }
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      estado_actual: { id: 2, nombre: 'Rackeado', orden: 50 },
+      flujo_operativo: { ...detail.flujo_operativo, siguiente_estado: finalStatus },
+    })
+    renderPage()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Avanzar a Finalizado' }))
+    expect(mocks.updateStatus).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Finalizar pedido' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Sí, finalizar pedido' }))
+    await waitFor(() => expect(mocks.updateStatus).toHaveBeenCalledWith(42, 3, ''))
+  })
+
+  it('muestra el rechazo de una transición y recarga el progreso real', async () => {
+    mocks.updateStatus.mockRejectedValueOnce({ isAxiosError: true, response: { status: 409, data: { error: 'La transición ya no está disponible.' } } })
+    renderPage()
+
+    await userEvent.click(await screen.findByRole('button', { name: /avanzar a en lavado/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('La transición ya no está disponible.')
+    expect(mocks.detail).toHaveBeenCalledTimes(2)
+  })
+
   it('muestra carga, 404 y permite reintentar sin datos anteriores', async () => {
     mocks.detail.mockRejectedValueOnce({ isAxiosError: true, response: { status: 404, data: { error: 'pedido no encontrado' } } })
     renderPage()
