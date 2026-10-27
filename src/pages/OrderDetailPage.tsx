@@ -5,6 +5,7 @@ import { cancelOrder, updateOrderStatus } from '../api/orders'
 import { errorMessage, httpStatus } from '../api/client'
 import { Modal } from '../components/Modal'
 import { OrderProgressTimeline } from '../components/OrderProgressTimeline'
+import { OrderStateControl } from '../components/OrderStateControl'
 import { OrderTimeline } from '../components/OrderTimeline'
 import { PaymentPanel } from '../components/PaymentPanel'
 import { PromotionBreakdown } from '../components/PromotionBreakdown'
@@ -109,9 +110,9 @@ function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operat
       </div>
 
       <aside className="order-side-column">
-        {canManage && <section className="detail-card state-update-card"><header><PackageCheck size={20}/><h2>Actualizar estado</h2></header>{order.flujo_operativo.siguiente_estado ? <><p>Siguiente etapa: <strong>{order.flujo_operativo.siguiente_estado.nombre}</strong></p><label>Observaciones<textarea aria-label="Observaciones" value={observations} onChange={event => setObservations(event.target.value)} maxLength={255} placeholder="Agrega una nota opcional…"/></label><button className="primary wide" disabled={submitting} onClick={() => void changeStatus()}>{submitting ? 'Actualizando…' : `Avanzar a ${order.flujo_operativo.siguiente_estado.nombre}`}</button></> : <div className={`completed-state ${order.flujo_operativo.cancelado ? 'cancelled' : ''}`}><CheckCircle2 size={25}/><span>{order.flujo_operativo.cancelado ? 'Este pedido fue cancelado.' : 'El flujo operativo está finalizado.'}</span></div>}</section>}
+        {canManage && <OrderStateControl flow={order.flujo_operativo} observations={observations} submitting={submitting} onObservationsChange={setObservations} onAdvance={() => void changeStatus()}/>}
 
-        <section className="detail-card"><header><CalendarDays size={20}/><h2>Historial</h2></header><OrderTimeline history={history}/></section>
+        <section className="detail-card"><header><CalendarDays size={20}/><h2>Historial</h2><span className="count-pill">{history.length} cambios</span></header><OrderTimeline history={history}/></section>
         {canManage && <PaymentPanel orderId={order.id} onPaymentSaved={refresh}/>}
       </aside>
     </div>
