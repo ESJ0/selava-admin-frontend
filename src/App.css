@@ -137,3 +137,19 @@
 .payment-form input, .payment-form select { min-width: 0; width: 100%; }
 .balance-grid > span { min-width: 0; overflow-wrap: anywhere; }
 @media (min-width: 561px) { .balance-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* SEL-110: progreso operativo calculado según los servicios del pedido. */
+.status-badge.finalizado { background: #d9f8e9; color: #007b55; }
+.progress-value { margin-left: auto; color: var(--primary); font-weight: 800; }
+.flow-progress { height: 8px; margin: 20px 24px 10px; border-radius: 999px; background: #e6edf4; overflow: hidden; }
+.flow-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .2s ease; }
+.operational-flow { list-style: none; margin: 0; padding: 10px 24px; display: grid; gap: 5px; }
+.operational-flow li { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; padding: 8px 0; color: #8290a4; }
+.operational-flow li > div { display: grid; gap: 2px; }
+.operational-flow small { color: var(--muted); }
+.flow-dot { width: 20px; height: 20px; margin-top: 1px; border: 2px solid #cbd7e3; border-radius: 50%; display: grid; place-items: center; }
+.operational-flow .done { color: #167b61; }
+.operational-flow .done .flow-dot { border-color: #35a47f; color: #168262; }
+.operational-flow .current { color: var(--navy); }
+.operational-flow .current .flow-dot { border: 5px solid var(--primary); }
+.completed-state.cancelled { background: #fff0f1; color: #a52b3d; }
