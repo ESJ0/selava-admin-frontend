@@ -146,15 +146,23 @@ describe('OrderDetailPage', () => {
     expect(await screen.findByText(/fue cancelado correctamente/i)).toBeInTheDocument()
   })
 
-  it('permite al operario avanzar únicamente a la etapa aplicable siguiente', async () => {
+  it('permite a la recepcionista avanzar únicamente a la etapa aplicable siguiente', async () => {
     const user = userEvent.setup()
-    useAuth.setState({ roleId: 3 })
-    renderPage(true)
-    expect(screen.queryByRole('button', { name: /^cancelar pedido$/i })).not.toBeInTheDocument()
+    renderPage()
     expect(await screen.findByText('Aplica por: Lavado')).toBeInTheDocument()
     await user.type(screen.getByLabelText('Observaciones'), 'Lista para entregar')
     await user.click(screen.getByRole('button', { name: /avanzar a en lavado/i }))
     await waitFor(() => expect(mocks.updateStatus).toHaveBeenCalledWith(42, 5, 'Lista para entregar'))
+  })
+
+  it('muestra el timeline al operario sin permitirle cambiar el estado', async () => {
+    useAuth.setState({ roleId: 3 })
+    renderPage(true)
+
+    expect(await screen.findByRole('list', { name: 'Etapas del pedido' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /avanzar a/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Observaciones')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^cancelar pedido$/i })).not.toBeInTheDocument()
   })
 
   it('muestra carga, 404 y permite reintentar sin datos anteriores', async () => {
