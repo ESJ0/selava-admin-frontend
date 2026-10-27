@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,6 +44,17 @@ const detail = {
   activo: true,
   cliente: { id: 1, nombre: 'Ana', apellido: 'Martínez', telefono: '5555-5555', email: 'ana@example.com', activo: true },
   estado_actual: { id: 1, nombre: 'Recibido', orden: 1 },
+  flujo_operativo: {
+    progreso_porcentaje: 25,
+    cancelado: false,
+    siguiente_estado: { id: 5, nombre: 'En lavado', orden: 20 },
+    estados: [
+      { id: 1, nombre: 'Recibido', orden: 10, servicios: [], completado: true, actual: true },
+      { id: 5, nombre: 'En lavado', orden: 20, servicios: [{ id: 3, nombre: 'Lavado' }], completado: false, actual: false },
+      { id: 2, nombre: 'Rackeado', orden: 50, servicios: [], completado: false, actual: false },
+      { id: 3, nombre: 'Finalizado', orden: 60, servicios: [], completado: false, actual: false },
+    ],
+  },
   prendas: [{
     id: 9, pedido_id: 42, tipo_prenda_id: 2, cantidad: 2, color: 'Azul',
     tipo_prenda: { id: 2, nombre: 'Camisa', precio: 999, modalidad_cobro: 'UNIDAD', activo: true },
@@ -135,17 +146,15 @@ describe('OrderDetailPage', () => {
     expect(await screen.findByText(/fue cancelado correctamente/i)).toBeInTheDocument()
   })
 
-  it('permite al operario avanzar a Rackeado y excluye Cancelado', async () => {
+  it('permite al operario avanzar únicamente a la etapa aplicable siguiente', async () => {
     const user = userEvent.setup()
     useAuth.setState({ roleId: 3 })
     renderPage(true)
-    const selector = await screen.findByLabelText('Nuevo estado')
     expect(screen.queryByRole('button', { name: /^cancelar pedido$/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'Cancelado' })).not.toBeInTheDocument()
-    await user.selectOptions(selector, '2')
+    expect(await screen.findByText('Aplica por: Lavado')).toBeInTheDocument()
     await user.type(screen.getByLabelText('Observaciones'), 'Lista para entregar')
-    await user.click(screen.getByRole('button', { name: /actualizar estado/i }))
-    await waitFor(() => expect(mocks.updateStatus).toHaveBeenCalledWith(42, 2, 'Lista para entregar'))
+    await user.click(screen.getByRole('button', { name: /avanzar a en lavado/i }))
+    await waitFor(() => expect(mocks.updateStatus).toHaveBeenCalledWith(42, 5, 'Lista para entregar'))
   })
 
   it('muestra carga, 404 y permite reintentar sin datos anteriores', async () => {
@@ -188,19 +197,18 @@ describe('OrderDetailPage', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: '#SLV-0042' })).not.toBeInTheDocument())
   })
 
-  it('bloquea estados terminales incluso si el catálogo contiene otros órdenes posteriores', async () => {
-    mocks.detail.mockResolvedValue({ ...detail, estado_actual: { id: 3, nombre: 'Entregado', orden: 3 } })
+  it('bloquea cambios cuando el flujo llegó a Finalizado', async () => {
+    mocks.detail.mockResolvedValue({ ...detail, estado_actual: { id: 3, nombre: 'Finalizado', orden: 60 }, flujo_operativo: { ...detail.flujo_operativo, progreso_porcentaje: 100, siguiente_estado: undefined, estados: detail.flujo_operativo.estados.map(stage => ({ ...stage, completado: true, actual: stage.nombre === 'Finalizado' })) } })
     mocks.statuses.mockResolvedValue([{ id: 9, nombre: 'Otro', orden: 5 }])
     renderPage(true)
-    expect(await screen.findByText('Este pedido ya no tiene estados pendientes.')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Nuevo estado')).not.toBeInTheDocument()
+    expect(await screen.findByText('El flujo operativo está finalizado.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /avanzar a/i })).not.toBeInTheDocument()
   })
 
   it('limita observaciones según bytes UTF-8 del contrato backend', async () => {
     renderPage(true)
-    await userEvent.selectOptions(await screen.findByLabelText('Nuevo estado'), '2')
-    await userEvent.type(screen.getByLabelText('Observaciones'), 'ñ'.repeat(128))
-    await userEvent.click(screen.getByRole('button', { name: 'Actualizar estado' }))
+    fireEvent.change(await screen.findByLabelText('Observaciones'), { target: { value: 'ñ'.repeat(128) } })
+    await userEvent.click(screen.getByRole('button', { name: /avanzar a en lavado/i }))
     expect(await screen.findByRole('alert')).toHaveTextContent('demasiado largas')
     expect(mocks.updateStatus).not.toHaveBeenCalled()
   })
