@@ -40,9 +40,26 @@ export type CatalogKind = 'servicios' | 'tipos-prenda' | 'metodos-pago'
 export interface EstadoPedido {
   id: number
   nombre: string
+  codigo?: string
   orden: number
+  es_obligatorio?: boolean
+  es_terminal?: boolean
+  es_cancelacion?: boolean
   created_at?: string
   updated_at?: string
+}
+
+export interface EstadoFlujoPedido extends EstadoPedido {
+  servicios: Pick<Servicio, 'id' | 'nombre'>[]
+  completado: boolean
+  actual: boolean
+}
+
+export interface FlujoOperativoPedido {
+  estados: EstadoFlujoPedido[]
+  siguiente_estado?: EstadoPedido
+  progreso_porcentaje: number
+  cancelado: boolean
 }
 
 export interface PedidoResumen {
@@ -174,6 +191,7 @@ export interface PedidoDetalle {
   prendas: PrendaDetalle[]
   estado_actual: EstadoPedido
   pagos: PagoDetalle[]
+  flujo_operativo: FlujoOperativoPedido
 }
 
 export interface HistorialEstado {

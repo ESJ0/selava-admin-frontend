@@ -1,5 +1,5 @@
 import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, PackageCheck, ReceiptText, Shirt, UserRound, XCircle } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { cancelOrder, updateOrderStatus } from '../api/orders'
 import { errorMessage, httpStatus } from '../api/client'
@@ -27,18 +27,16 @@ export function OrderDetailPage({ operatorMode = false }: { operatorMode?: boole
 
 function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operatorMode: boolean }) {
   const roleId = useAuth(state => state.roleId)
-  const { order, history, statuses, loading, error, setError, notFound, load, refresh, isActive } = useOrderData(orderId)
+  const { order, history, loading, error, setError, notFound, load, refresh, isActive } = useOrderData(orderId)
   const [notice, setNotice] = useState('')
   const [cancelOpen, setCancelOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [nextStatus, setNextStatus] = useState('')
   const [observations, setObservations] = useState('')
   const busy = useRef(false)
 
-  const availableStatuses = useMemo(() => !order || ['Entregado', 'Cancelado'].includes(order.estado_actual.nombre) ? [] : statuses.filter(status => status.nombre !== 'Cancelado' && status.orden > order.estado_actual.orden), [order, statuses])
   const canManage = roleId === 1 || roleId === 2
   const canCancel = canManage && order?.estado_actual.nombre === 'Recibido' && !submitting
-  const showOperatorFlow = operatorMode || roleId === 3
+  const showOperatorFlow = operatorMode || roleId === 1 || roleId === 2 || roleId === 3
 
   async function mutate(action: () => Promise<unknown>, message: string) {
     if (busy.current) return
@@ -47,12 +45,12 @@ function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operat
     try {
       await action()
       if (!isActive()) return
-      setCancelOpen(false); setNextStatus(''); setObservations('')
+      setCancelOpen(false); setObservations('')
       const refreshed = await load()
       if (isActive()) setNotice(refreshed ? message : 'El cambio se guardó, pero no pudimos recargar el pedido. Intenta cargarlo nuevamente.')
     } catch (cause) {
       if (isActive()) {
-        if (httpStatus(cause) === 409) { await load(); setNextStatus('') }
+        if (httpStatus(cause) === 409) await load()
         if (isActive()) { setError(errorMessage(cause)); setCancelOpen(false) }
       }
     } finally {
@@ -67,14 +65,14 @@ function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operat
   }
 
   async function changeStatus() {
-    const statusId = Number(nextStatus)
-    if (!order || !availableStatuses.some(status => status.id === statusId)) {
-      setError('Selecciona un estado disponible para este pedido.'); return
+    const next = order?.flujo_operativo.siguiente_estado
+    if (!order || !next) {
+      setError('Este pedido no tiene una siguiente etapa disponible.'); return
     }
     if (new TextEncoder().encode(observations.trim()).length > 255) {
       setError('Las observaciones son demasiado largas. Acórtalas antes de continuar.'); return
     }
-    await mutate(() => updateOrderStatus(order.id, statusId, observations), 'El estado del pedido se actualizó correctamente.')
+    await mutate(() => updateOrderStatus(order.id, next.id, observations), 'El estado del pedido se actualizó correctamente.')
   }
 
   if (loading) return <div className="state page-state" role="status"><span className="spinner"/>Cargando pedido…</div>
@@ -108,7 +106,7 @@ function OrderDetailContent({ orderId, operatorMode }: { orderId: number; operat
       </div>
 
       <aside className="order-side-column">
-        {showOperatorFlow && <section className="detail-card state-update-card"><header><PackageCheck size={20}/><h2>Actualizar estado</h2></header>{availableStatuses.length ? <><p>Avanza el pedido al siguiente punto del proceso.</p><label>Nuevo estado<select aria-label="Nuevo estado" disabled={submitting} value={nextStatus} onChange={event => setNextStatus(event.target.value)}><option value="">Seleccionar estado</option>{availableStatuses.map(status => <option key={status.id} value={status.id}>{status.nombre}</option>)}</select></label><label>Observaciones<textarea value={observations} onChange={event => setObservations(event.target.value)} maxLength={255} placeholder="Agrega una nota opcional…"/></label><button className="primary wide" disabled={submitting || !nextStatus} onClick={() => void changeStatus()}>{submitting ? 'Actualizando…' : 'Actualizar estado'}</button></> : <div className="completed-state"><CheckCircle2 size={25}/><span>Este pedido ya no tiene estados pendientes.</span></div>}</section>}
+        {showOperatorFlow && <section className="detail-card state-update-card"><header><PackageCheck size={20}/><h2>Progreso operativo</h2><span className="progress-value">{order.flujo_operativo.progreso_porcentaje}%</span></header><div className="flow-progress" role="progressbar" aria-label="Progreso del pedido" aria-valuemin={0} aria-valuemax={100} aria-valuenow={order.flujo_operativo.progreso_porcentaje}><span style={{ width: `${order.flujo_operativo.progreso_porcentaje}%` }}/></div><ol className="operational-flow">{order.flujo_operativo.estados.map(stage => <li key={stage.id} className={stage.actual ? 'current' : stage.completado ? 'done' : ''}><span className="flow-dot">{stage.completado && <CheckCircle2 size={16}/>}</span><div><strong>{stage.nombre}</strong>{stage.servicios.length > 0 && <small>Aplica por: {stage.servicios.map(service => service.nombre).join(', ')}</small>}</div></li>)}</ol>{order.flujo_operativo.siguiente_estado ? <><p>Siguiente etapa: <strong>{order.flujo_operativo.siguiente_estado.nombre}</strong></p><label>Observaciones<textarea aria-label="Observaciones" value={observations} onChange={event => setObservations(event.target.value)} maxLength={255} placeholder="Agrega una nota opcional…"/></label><button className="primary wide" disabled={submitting} onClick={() => void changeStatus()}>{submitting ? 'Actualizando…' : `Avanzar a ${order.flujo_operativo.siguiente_estado.nombre}`}</button></> : <div className={`completed-state ${order.flujo_operativo.cancelado ? 'cancelled' : ''}`}><CheckCircle2 size={25}/><span>{order.flujo_operativo.cancelado ? 'Este pedido fue cancelado.' : 'El flujo operativo está finalizado.'}</span></div>}</section>}
 
         <section className="detail-card"><header><CalendarDays size={20}/><h2>Historial</h2></header><OrderTimeline history={history}/></section>
         {canManage && <PaymentPanel orderId={order.id} onPaymentSaved={refresh}/>}
