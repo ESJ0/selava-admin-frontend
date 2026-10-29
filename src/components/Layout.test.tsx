@@ -12,7 +12,7 @@ describe('Layout', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Layout><div>Contenido</div></Layout></MemoryRouter>)
     const nav = screen.getByRole('navigation')
-    expect(within(nav).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual(['Operación', 'Catálogos', 'Reportes'])
+    expect(within(nav).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual(['Operación', 'Catálogos', 'Administración', 'Reportes'])
     expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual([
       'Clientes',
       'Tipos de prenda',
@@ -20,6 +20,7 @@ describe('Layout', () => {
       'Tipos de servicio',
       'Insumos',
       'Métodos de pago',
+      'Usuarios',
       'Reporte de ventas',
       'Pedidos por estado',
       'Consumo de insumos',
@@ -41,6 +42,8 @@ describe('Layout', () => {
     expect(screen.queryByRole('link', { name: 'Pedidos por estado' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Consumo de insumos' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Reportes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Métodos de pago' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Usuarios' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual(['Operación', 'Catálogos'])
   })
 })

@@ -1,4 +1,4 @@
-import { Bell, Boxes, ChartColumnBig, ChartPie, ChevronDown, ClipboardList, CreditCard, LogOut, Menu, PackageSearch, PackagePlus, Search, Shirt, Sparkles, Users, X } from 'lucide-react'
+import { Bell, Boxes, ChartColumnBig, ChartPie, ChevronDown, ClipboardList, CreditCard, LogOut, Menu, PackageSearch, PackagePlus, Search, Shirt, Sparkles, UserCog, Users, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../store/auth'
@@ -41,8 +41,9 @@ export function Layout({ children }: { children: ReactNode }) {
       </section>
       {roleId !== 3 && <section className="nav-section" aria-labelledby="catalog-nav-title">
         <h2 id="catalog-nav-title">Catálogos</h2>
-        {catalogLinks.map(({to,label,icon:Icon}) => <NavLink key={to} to={to} onClick={() => setOpen(false)}><Icon size={20}/>{label}</NavLink>)}
+        {catalogLinks.filter(link => roleId === 1 || link.to !== '/metodos-pago').map(({to,label,icon:Icon}) => <NavLink key={to} to={to} onClick={() => setOpen(false)}><Icon size={20}/>{label}</NavLink>)}
       </section>}
+      {roleId === 1 && <section className="nav-section" aria-labelledby="admin-nav-title"><h2 id="admin-nav-title">Administración</h2><NavLink to="/usuarios" onClick={() => setOpen(false)}><UserCog size={20}/>Usuarios</NavLink></section>}
       {roleId === 1 && <section className="nav-section" aria-labelledby="reports-nav-title">
         <h2 id="reports-nav-title">Reportes</h2>
         {reportLinks.map(({to,label,icon:Icon}) => <NavLink key={to} to={to} onClick={() => setOpen(false)}><Icon size={20}/>{label}</NavLink>)}

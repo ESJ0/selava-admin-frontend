@@ -180,3 +180,6 @@
   .order-progress-stage:not(:last-child)::after { top: 56px; left: 27px; width: 3px; height: calc(100% - 56px); }
   .stage-copy { justify-items: start; padding-top: 7px; }
 }
+
+/* SEL-204: gestión de cuentas unificadas. */
+.user-form select{border:1px solid #d7e1ed;border-radius:16px;padding:13px 16px;background:#fff}.users-table{min-width:720px}.user-identity{display:grid;gap:4px}.user-identity small{color:var(--muted)}
