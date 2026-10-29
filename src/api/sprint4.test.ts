@@ -30,7 +30,7 @@ describe('contratos API de Sprint 4', () => {
 
     expect(mocks.get).toHaveBeenNthCalledWith(1, '/pedidos/42/saldo', { signal: controller.signal })
     expect(mocks.get).toHaveBeenNthCalledWith(2, '/pedidos/42/pagos', { signal: controller.signal })
-    expect(mocks.get).toHaveBeenNthCalledWith(3, '/metodos-pago/', { signal: controller.signal })
+    expect(mocks.get).toHaveBeenNthCalledWith(3, '/pedidos/catalogos/metodos-pago', { signal: controller.signal })
     expect(mocks.post).toHaveBeenCalledWith('/pedidos/42/pagos', { metodo_pago_id: 3, monto: 25, referencia: 'POS-25' })
   })
 
