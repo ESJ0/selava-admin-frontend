@@ -10,7 +10,16 @@ npm ci
 npm run dev
 ```
 
-Con `VITE_API_URL=/api`, Vite redirige las llamadas API al backend local. La aplicación queda disponible en `http://localhost:5173`. Las credenciales se configuran mediante el seed del backend; no se guardan contraseñas en este repositorio. Detén el servidor con `Ctrl+C`.
+Con `VITE_API_URL=/api`, Vite redirige las llamadas API al backend local. La aplicación queda disponible en `http://localhost:5173`. `VITE_LOGIN_URL` apunta al login único del portal cliente. El callback consume el JWT desde el fragmento URL, lo elimina y conserva la sesión en `sessionStorage` hasta que vence o el usuario cierra sesión.
+
+## Autenticación y usuarios (SEL-204)
+
+El login administrativo anterior redirige a `http://localhost:5174/login`.
+Administrador y Recepcionista regresan por `/auth/callback`; Operario conserva
+su vista de pedidos. Solo Administrador ve `/usuarios`, métodos de pago y
+reportes. Recepcionista gestiona pedidos, clientes, promociones e insumos, y
+consulta tipos de prenda y servicio sin acciones de edición. Las rutas directas
+no autorizadas redirigen a Pedidos y el backend vuelve a comprobar el rol.
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
