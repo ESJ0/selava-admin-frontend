@@ -17,13 +17,16 @@ describe('contrato API de reportes', () => {
     })
   })
 
-  it('consulta los pedidos por estado propagando la señal de cancelación', async () => {
+  it('consulta los pedidos por estado con período y señal de cancelación', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue({ data: { total_pedidos: 0, pedidos_por_estado: [] } })
     const signal = new AbortController().signal
 
-    await getOrdersByStatusReport(signal)
+    await getOrdersByStatusReport('2026-09-01', '2026-09-30', signal)
 
-    expect(get).toHaveBeenCalledWith('/reportes/pedidos-por-estado', { signal })
+    expect(get).toHaveBeenCalledWith('/reportes/pedidos-por-estado', {
+      params: { fecha_inicio: '2026-09-01', fecha_fin: '2026-09-30' },
+      signal,
+    })
   })
 
   it('envía el período al reporte de consumo de insumos', async () => {

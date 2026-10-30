@@ -8,8 +8,11 @@ export async function getSalesReport(fechaInicio: string, fechaFin: string, sign
   })).data
 }
 
-export async function getOrdersByStatusReport(signal?: AbortSignal) {
-  return (await api.get<ReportePedidosPorEstado>('/reportes/pedidos-por-estado', { signal })).data
+export async function getOrdersByStatusReport(fechaInicio: string, fechaFin: string, signal?: AbortSignal) {
+  return (await api.get<ReportePedidosPorEstado>('/reportes/pedidos-por-estado', {
+    params: { fecha_inicio: fechaInicio, fecha_fin: fechaFin },
+    signal,
+  })).data
 }
 
 export async function getSupplyConsumptionReport(fechaInicio: string, fechaFin: string, signal?: AbortSignal) {
