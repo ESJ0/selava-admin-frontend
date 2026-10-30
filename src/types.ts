@@ -235,6 +235,8 @@ export interface ReportePedidosPorEstadoDetalle {
 }
 
 export interface ReportePedidosPorEstado {
+  fecha_inicio: string
+  fecha_fin: string
   total_pedidos: number
   pedidos_por_estado: ReportePedidosPorEstadoDetalle[]
 }
