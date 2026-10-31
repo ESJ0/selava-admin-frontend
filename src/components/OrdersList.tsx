@@ -1,14 +1,14 @@
-import { ChevronLeft, ChevronRight, Eye, ListFilter, RefreshCw, Search } from 'lucide-react'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { errorMessage } from '../api/client'
 import { listOrders, listOrderStatuses } from '../api/orders'
+import { useOrdersOverview } from '../hooks/useOrdersOverview'
 import type { EstadoPedido, PedidoListFilters, PedidoListResponse } from '../types'
+import { avatarColors, calendarDay, daysBetween, formatShortDate, initials, isActiveOrder, money, orderCode, stageLook, startOfDay } from '../utils/adminFormat'
+import { Pager, StatusChip } from './admin/AdminBits'
+import { ChevronRightIcon, CloseIcon, FilterIcon, RefreshIcon, SearchIcon, SpinnerIcon } from './admin/icons'
 
-const pageSize = 20
-const money = new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' })
-const date = new Intl.DateTimeFormat('es-GT', { dateStyle: 'medium', timeZone: 'America/Guatemala' })
-const emptyFilters = { search: '', status: '', from: '', to: '', order: 'recientes' as const }
+const pageSize = 10
 
 function readFilters(params: URLSearchParams) {
   return {
@@ -17,6 +17,17 @@ function readFilters(params: URLSearchParams) {
     order: params.get('orden') === 'antiguos' ? 'antiguos' as const : 'recientes' as const,
   }
 }
+type Filters = ReturnType<typeof readFilters>
+
+function toParams(filters: Filters) {
+  const params = new URLSearchParams()
+  if (filters.search.trim()) params.set('q', filters.search.trim())
+  if (filters.status) params.set('estado_id', filters.status)
+  if (filters.from) params.set('fecha_desde', filters.from)
+  if (filters.to) params.set('fecha_hasta', filters.to)
+  if (filters.order === 'antiguos') params.set('orden', filters.order)
+  return params
+}
 
 export function OrdersList({ detailBase }: { detailBase: string }) {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -24,9 +35,10 @@ export function OrdersList({ detailBase }: { detailBase: string }) {
   const applied = useMemo(() => readFilters(new URLSearchParams(query)), [query])
   const rawPage = Number(searchParams.get('pagina') ?? 1)
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 && rawPage <= 1000000 ? rawPage : 1
-  const [draft, setDraft] = useState({ query, filters: applied, validation: '' })
-  const filters = draft.query === query ? draft.filters : applied
-  const validation = draft.query === query ? draft.validation : ''
+  const [searchDraft, setSearchDraft] = useState({ query, value: applied.search })
+  const searchText = searchDraft.query === query ? searchDraft.value : applied.search
+  const [dateDraft, setDateDraft] = useState({ query, from: applied.from, to: applied.to })
+  const dates = dateDraft.query === query ? dateDraft : { query, from: applied.from, to: applied.to }
   const [result, setResult] = useState<PedidoListResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -34,23 +46,21 @@ export function OrdersList({ detailBase }: { detailBase: string }) {
   const [statuses, setStatuses] = useState<EstadoPedido[]>([])
   const [statusError, setStatusError] = useState('')
   const [statusReload, setStatusReload] = useState(0)
+  const searchTimer = useRef<number | undefined>(undefined)
+  const overview = useOrdersOverview(state => state.orders)
+  const overviewReady = useOrdersOverview(state => state.status === 'ready')
+  const loadOverview = useOrdersOverview(state => state.load)
 
-  function setFilters(value: typeof applied) {
-    setDraft(current => ({ query, filters: value, validation: current.query === query ? current.validation : '' }))
-  }
-
-  function setValidation(value: string) {
-    setDraft(current => ({ query, filters: current.query === query ? current.filters : applied, validation: value }))
-  }
+  useEffect(() => () => window.clearTimeout(searchTimer.current), [])
 
   useEffect(() => {
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
       setStatusError('')
       void listOrderStatuses(controller.signal).then(data => {
-        if (!controller.signal.aborted) setStatuses(data)
-      }).catch(error => {
-        if (!controller.signal.aborted) setStatusError(errorMessage(error))
+        if (!controller.signal.aborted) setStatuses([...(data ?? [])].sort((a, b) => a.orden - b.orden))
+      }).catch(cause => {
+        if (!controller.signal.aborted) setStatusError(errorMessage(cause))
       })
     }, 0)
     return () => { window.clearTimeout(timer); controller.abort() }
@@ -70,8 +80,8 @@ export function OrdersList({ detailBase }: { detailBase: string }) {
       setResult(null)
       void listOrders(params, controller.signal).then(data => {
         if (!controller.signal.aborted) setResult(data)
-      }).catch(error => {
-        if (!controller.signal.aborted) setError(errorMessage(error))
+      }).catch(cause => {
+        if (!controller.signal.aborted) setError(errorMessage(cause))
       }).finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
@@ -79,21 +89,24 @@ export function OrdersList({ detailBase }: { detailBase: string }) {
     return () => { window.clearTimeout(timer); controller.abort() }
   }, [applied, page, reload])
 
-  function apply(event: FormEvent) {
-    event.preventDefault()
-    if (filters.from && filters.to && filters.from > filters.to) {
-      setValidation('La fecha hasta no puede ser anterior a la fecha desde.')
-      return
-    }
-    setValidation('')
-    const params = new URLSearchParams()
-    if (filters.search.trim()) params.set('q', filters.search.trim())
-    if (filters.status) params.set('estado_id', filters.status)
-    if (filters.from) params.set('fecha_desde', filters.from)
-    if (filters.to) params.set('fecha_hasta', filters.to)
-    if (filters.order === 'antiguos') params.set('orden', filters.order)
+  /** Aplica filtros al instante (vuelve a la página 1). */
+  function apply(next: Filters) {
+    const params = toParams(next)
     if (params.toString() === query) setReload(value => value + 1)
     else setSearchParams(params)
+  }
+
+  function changeSearch(value: string) {
+    setSearchDraft({ query, value })
+    window.clearTimeout(searchTimer.current)
+    searchTimer.current = window.setTimeout(() => apply({ ...applied, search: value }), 400)
+  }
+
+  function changeDate(field: 'from' | 'to', value: string) {
+    const next = { ...dates, [field]: value }
+    setDateDraft({ query, from: next.from, to: next.to })
+    if (next.from && next.to && next.from > next.to) return
+    apply({ ...applied, from: next.from, to: next.to })
   }
 
   function changePage(next: number) {
@@ -103,52 +116,105 @@ export function OrdersList({ detailBase }: { detailBase: string }) {
     setSearchParams(params)
   }
 
+  function clearAll() {
+    window.clearTimeout(searchTimer.current)
+    setSearchDraft({ query: '', value: '' })
+    setDateDraft({ query: '', from: '', to: '' })
+    if (!query) setReload(value => value + 1)
+    else setSearchParams(new URLSearchParams())
+  }
+
+  function refresh() {
+    setReload(value => value + 1)
+    setStatusReload(value => value + 1)
+    void loadOverview(true)
+  }
+
+  const invalidRange = Boolean(dates.from && dates.to && dates.from > dates.to)
   const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize))
   const hasFilters = Boolean(applied.search || applied.status || applied.from || applied.to)
+  const anyFilter = hasFilters || applied.order !== 'recientes' || Boolean(searchText) || Boolean(dates.from || dates.to)
+  const today = startOfDay()
 
-  return <section className="orders-list" aria-labelledby="orders-list-title">
-    <header className="orders-list-heading">
-      <div><h2 id="orders-list-title">Todos los pedidos</h2><p>Consulta los pedidos en proceso, entregados y cancelados.</p></div>
-      <button className="secondary" type="button" onClick={() => setReload(value => value + 1)} disabled={loading}><RefreshCw size={17} aria-hidden="true"/>Actualizar listado</button>
-    </header>
-    <form className="orders-filters" onSubmit={apply} aria-label="Filtros de pedidos">
-      <label className="orders-filter-search">Buscar pedido o cliente<input type="search" value={filters.search} maxLength={100} placeholder="Número, nombre o teléfono" onChange={event => setFilters({ ...filters, search: event.target.value })}/></label>
-      <label>Estado del pedido<select aria-label="Estado del pedido" value={filters.status} onChange={event => setFilters({ ...filters, status: event.target.value })}>
-        <option value="">Todos los estados</option>
-        {filters.status && !statuses.some(status => String(status.id) === filters.status) && <option value={filters.status}>Estado seleccionado</option>}
-        {statuses.map(status => <option key={status.id} value={status.id}>{status.nombre}</option>)}
-      </select></label>
-      <label>Recibido desde<input type="date" value={filters.from} onChange={event => { setFilters({ ...filters, from: event.target.value }); setValidation('') }}/></label>
-      <label>Recibido hasta<input type="date" value={filters.to} onChange={event => { setFilters({ ...filters, to: event.target.value }); setValidation('') }}/></label>
-      <label>Ordenar por<select aria-label="Ordenar por" value={filters.order} onChange={event => setFilters({ ...filters, order: event.target.value as typeof filters.order })}><option value="recientes">Más recientes</option><option value="antiguos">Más antiguos</option></select></label>
-      <div className="orders-filter-actions"><span><ListFilter size={16} aria-hidden="true"/>El rango incluye ambos días, según la fecha de recepción.</span><div>
-        <button className="secondary" type="button" onClick={() => { setFilters(emptyFilters); setValidation(''); setSearchParams(new URLSearchParams()); if (!query) setReload(value => value + 1) }}>Limpiar filtros</button>
-        <button className="primary" type="submit"><Search size={17} aria-hidden="true"/>Aplicar filtros</button>
-      </div></div>
-      {validation && <div className="alert error orders-filter-message" role="alert">{validation}</div>}
-      {statusError && <div className="alert error orders-filter-message" role="alert"><span>No se pudieron cargar los estados. {statusError}</span><button type="button" onClick={() => setStatusReload(value => value + 1)}>Reintentar estados</button></div>}
-    </form>
-    <div className="orders-list-card" aria-busy={loading}>
-      {loading ? <div className="state" role="status"><span className="spinner"/>Cargando pedidos…</div>
-        : error ? <div className="state" role="alert"><p>{error}</p><button className="secondary" type="button" onClick={() => setReload(value => value + 1)}>Reintentar listado</button></div>
-        : !result?.pedidos.length ? <div className="state"><Search size={32} aria-hidden="true"/><p>{result && result.total > 0 ? 'Esta página no tiene pedidos.' : hasFilters ? 'No hay pedidos que coincidan con los filtros.' : 'Todavía no hay pedidos registrados.'}</p>{hasFilters && <button className="secondary" type="button" onClick={() => setSearchParams(new URLSearchParams())}>Ver todos los pedidos</button>}{page > 1 && <button className="secondary" type="button" onClick={() => changePage(1)}>Volver a la primera página</button>}</div>
-        : <div className="table-scroll"><table className="orders-table"><caption className="sr-only">Listado de pedidos</caption><thead><tr><th scope="col">Pedido</th><th scope="col">Cliente</th><th scope="col">Estado</th><th scope="col">Recibido</th><th scope="col">Entrega estimada</th><th scope="col">Total</th><th scope="col"><span className="sr-only">Acciones</span></th></tr></thead><tbody>{result.pedidos.map(order => {
-          const code = `SLV-${String(order.id).padStart(4, '0')}`
-          const stateName = order.estado_actual.nombre.toLocaleLowerCase('es-GT')
-          return <tr key={order.id}>
-            <td data-label="Pedido"><strong>#{code}</strong></td>
-            <td data-label="Cliente"><span className="orders-client"><b>{order.cliente.nombre} {order.cliente.apellido}</b><small>{order.cliente.telefono}</small></span></td>
-            <td data-label="Estado"><span className={`order-list-state ${!order.activo || stateName === 'cancelado' ? 'cancelled' : stateName === 'entregado' ? 'completed' : ''}`}>{order.estado_actual.nombre}</span></td>
-            <td data-label="Recibido">{date.format(new Date(order.fecha_recibido))}</td>
-            <td data-label="Entrega estimada">{order.fecha_entrega_estimada ? date.format(new Date(order.fecha_entrega_estimada)) : 'Por definir'}</td>
-            <td data-label="Total" className="money">{money.format(order.total)}</td>
-            <td data-label="Detalle"><Link className="orders-view-link" to={`${detailBase}/${order.id}`} aria-label={`Ver pedido ${code}`}>Ver pedido<Eye size={17} aria-hidden="true"/></Link></td>
-          </tr>
-        })}</tbody></table></div>}
-      {!loading && !error && result && result.total > 0 && <footer className="orders-pagination">
-        <span aria-live="polite">{result.pedidos.length ? `Mostrando ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, result.total)} de ${result.total} pedidos` : `${result.total} pedidos encontrados`}</span>
-        <div><button type="button" aria-label="Página anterior de pedidos" disabled={page <= 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18}/></button><span>Página {page} de {totalPages}</span><button type="button" aria-label="Página siguiente de pedidos" disabled={page >= totalPages} onClick={() => changePage(page + 1)}><ChevronRight size={18}/></button></div>
+  // Conteos por estado sobre todos los pedidos (resumen en caché).
+  const counts = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const order of overview) map.set(order.estado_actual.id, (map.get(order.estado_actual.id) ?? 0) + 1)
+    return map
+  }, [overview])
+  const chips = [{ id: '', label: 'Todos', dot: '#0A2433', count: overviewReady ? overview.length : undefined }, ...statuses.map(status => ({ id: String(status.id), label: status.nombre, dot: stageLook(status)[1], count: overviewReady ? counts.get(status.id) ?? 0 : undefined }))]
+  if (applied.status && !statuses.some(status => String(status.id) === applied.status)) chips.push({ id: applied.status, label: 'Estado seleccionado', dot: '#5A7280', count: undefined })
+
+  return <section aria-labelledby="orders-list-title">
+    <h2 id="orders-list-title" className="ad-sr">Todos los pedidos</h2>
+    <section className="ad-chipsrow ad-st" style={{ animationDelay: '.2s' }} role="group" aria-label="Filtrar por estado">
+      {chips.map(chip => {
+        const selected = applied.status === chip.id
+        return <button key={chip.id || 'todos'} type="button" className={`ad-stc${selected ? ' on' : ''}${chip.count === 0 ? ' zero' : ''}`} aria-pressed={selected} onClick={() => apply({ ...applied, status: chip.id })}>
+          <i style={{ background: chip.dot }} />{chip.label}{chip.count !== undefined && <span className="cc">{chip.count}</span>}
+        </button>
+      })}
+    </section>
+    {statusError && <div className="ad-banner err" role="alert">No se pudieron cargar los estados. {statusError}<button type="button" onClick={() => setStatusReload(value => value + 1)}>Reintentar estados</button></div>}
+
+    <section className="ad-filters ad-st" style={{ animationDelay: '.26s' }} aria-label="Filtros de pedidos">
+      <label className="ad-f grow"><span>Buscar pedido o cliente</span>
+        <span className="ad-fi"><SearchIcon size={18} stroke="#5A7280" /><input type="search" aria-label="Buscar pedido o cliente" maxLength={100} placeholder="Número, nombre o teléfono" value={searchText} onChange={event => changeSearch(event.target.value)} /></span></label>
+      <label className="ad-f"><span>Recibido desde</span><span className="ad-fi"><input type="date" aria-label="Recibido desde" value={dates.from} onChange={event => changeDate('from', event.target.value)} /></span></label>
+      <label className="ad-f"><span>Recibido hasta</span><span className="ad-fi"><input type="date" aria-label="Recibido hasta" value={dates.to} onChange={event => changeDate('to', event.target.value)} /></span></label>
+      <label className="ad-f"><span>Ordenar por</span><span className="ad-fi"><select aria-label="Ordenar por" value={applied.order} onChange={event => apply({ ...applied, order: event.target.value as Filters['order'] })}><option value="recientes">Más recientes</option><option value="antiguos">Más antiguos</option></select></span></label>
+      <div className="ad-factions">
+        {anyFilter && <button className="ad-clean ad-pop" type="button" onClick={clearAll}><CloseIcon size={16} />Limpiar filtros</button>}
+        <button className="ad-refresh" type="button" onClick={refresh} aria-label="Actualizar listado" disabled={loading}><RefreshIcon className={loading ? 'ad-spin' : undefined} size={18} />{loading ? 'Actualizando…' : 'Actualizar listado'}</button>
+      </div>
+      {invalidRange
+        ? <p className="ad-fnote err" role="alert">La fecha hasta no puede ser anterior a la fecha desde.</p>
+        : <p className="ad-fnote"><FilterIcon size={14} />Los filtros se aplican al instante. El rango incluye ambos días, según la fecha de recepción.</p>}
+    </section>
+
+    <section className="ad-otbl ad-st" style={{ animationDelay: '.32s' }} aria-busy={loading}>
+      {loading ? <div className="ad-state" role="status"><SpinnerIcon className="ad-spin" size={28} />Cargando pedidos…</div>
+        : error ? <div className="ad-state" role="alert"><p>{error}</p><button className="ad-btn-dark" type="button" onClick={() => setReload(value => value + 1)}><RefreshIcon size={17} />Reintentar listado</button></div>
+        : !result?.pedidos.length ? <div className="ad-pop ad-state">
+          <svg className="ad-swing2" width="80" height="74" viewBox="0 0 76 70" aria-hidden="true"><path d="M38 2 a6 6 0 1 1 6 6 c-3 0-6 2-6 6 v4" fill="none" stroke="#9DB3BE" strokeWidth="3" strokeLinecap="round" /><path d="M38 18 L4 46 H72 Z" fill="none" stroke="#9DB3BE" strokeWidth="3" strokeLinejoin="round" /></svg>
+          <p className="ad-disp">{result && result.total > 0 ? 'Esta página no tiene pedidos.' : hasFilters ? 'No hay pedidos que coincidan con los filtros.' : 'Todavía no hay pedidos registrados.'}</p>
+          {hasFilters && <p>Prueba con otro estado o amplía el rango de fechas.</p>}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {hasFilters && <button className="ad-btn-dark" type="button" onClick={clearAll}>Ver todos los pedidos</button>}
+            {page > 1 && <button className="ad-btn-dark" type="button" onClick={() => changePage(1)}>Volver a la primera página</button>}
+          </div>
+        </div>
+        : <div aria-label="Listado de pedidos">
+          <div className="ad-ohead" aria-hidden="true"><span>Pedido</span><span>Cliente</span><span>Estado</span><span>Recibido</span><span>Entrega estimada</span><span style={{ textAlign: 'right' }}>Total</span><span><span className="ad-sr">Acciones</span></span></div>
+          {result.pedidos.map((order, index) => {
+            const code = orderCode(order.id)
+            const name = `${order.cliente.nombre} ${order.cliente.apellido}`.trim()
+            const ini = initials(name)
+            const [abg, afg] = avatarColors(ini)
+            const due = calendarDay(order.fecha_entrega_estimada)
+            let dueSub = '', dueColor = '#0A2433', dueWeight = 400
+            if (!due) { dueColor = '#9A6A00'; dueWeight = 600; dueSub = 'Sin fecha' }
+            else if (isActiveOrder(order)) {
+              const days = daysBetween(today, due)
+              if (days < 0) { dueColor = '#C8401F'; dueWeight = 600; dueSub = `Vencido hace ${-days} ${days === -1 ? 'día' : 'días'}` }
+              else if (days === 0) { dueColor = '#06709F'; dueWeight = 600; dueSub = 'Hoy' }
+              else { dueSub = days === 1 ? 'Mañana' : `En ${days} días`; dueColor = days <= 3 ? '#06709F' : '#0A2433' }
+            }
+            return <Link key={order.id} className="ad-orow" to={`${detailBase}/${order.id}`} aria-label={`Ver pedido ${code.slice(1)}`} style={{ animationDelay: `${(0.03 * index + 0.02).toFixed(2)}s` }}>
+              <span className="ad-disp ad-oid">{code}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}><span className="ad-oav" style={{ background: abg, color: afg }}>{ini}</span><span style={{ minWidth: 0 }}><span style={{ display: 'block', fontWeight: 600 }}>{name}</span><span style={{ fontSize: 13, color: '#5A7280' }}>{order.cliente.telefono}</span></span></span>
+              <span><StatusChip status={order.estado_actual} /></span>
+              <span>{formatShortDate(order.fecha_recibido)}</span>
+              <span><span style={{ display: 'block', color: dueColor, fontWeight: dueWeight }}>{due ? formatShortDate(order.fecha_entrega_estimada) : 'Por definir'}</span><span style={{ fontSize: 12, color: dueColor, opacity: .85 }}>{dueSub}</span></span>
+              <span className="ad-disp" style={{ textAlign: 'right', fontWeight: 800, fontSize: 17 }}>{money(order.total)}</span>
+              <span className="ad-ogo"><ChevronRightIcon size={18} strokeWidth={2.4} /></span>
+            </Link>
+          })}
+        </div>}
+      {!loading && !error && result && result.total > 0 && <footer className="ad-tfoot">
+        <span aria-live="polite">{result.pedidos.length ? `Mostrando ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, result.total)} de ${result.total} pedidos` : `${result.total} pedidos encontrados`}{result.pedidos.length > 0 && <> · Suma <strong style={{ color: '#0A2433' }}>{money(result.pedidos.reduce((sum, order) => sum + order.total, 0))}</strong></>}</span>
+        <Pager page={page} pages={totalPages} label={`Página ${page} de ${totalPages}`} onChange={changePage} nameSuffix=" de pedidos" />
       </footer>}
-    </div>
+    </section>
   </section>
 }

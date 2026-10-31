@@ -10,7 +10,7 @@ const entry = (id: number, state: string, date: string): HistorialEstado => ({
 })
 
 describe('OrderTimeline', () => {
-  it('presenta los cambios en orden cronológico aunque la respuesta llegue desordenada', () => {
+  it('presenta primero el cambio más reciente aunque la respuesta llegue desordenada', () => {
     render(<OrderTimeline history={[
       entry(3, 'Finalizado', '2026-10-03T10:00:00Z'),
       entry(1, 'Recibido', '2026-10-01T10:00:00Z'),
@@ -19,11 +19,11 @@ describe('OrderTimeline', () => {
 
     const items = within(screen.getByRole('list', { name: 'Historial de estados' })).getAllByRole('listitem')
     expect(items.map(item => item.textContent)).toEqual([
-      expect.stringContaining('Recibido'),
-      expect.stringContaining('Rackeado'),
       expect.stringContaining('Finalizado'),
+      expect.stringContaining('Rackeado'),
+      expect.stringContaining('Recibido'),
     ])
-    expect(items[2]).toHaveClass('latest')
+    expect(items[0]).toHaveClass('latest')
   })
 
   it('muestra el estado vacío sin inventar movimientos', () => {

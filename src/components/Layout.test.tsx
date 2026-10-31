@@ -14,6 +14,9 @@ describe('Layout', () => {
     const nav = screen.getByRole('navigation')
     expect(within(nav).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual(['Operación', 'Catálogos', 'Administración', 'Reportes'])
     expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Inicio',
+      'Nuevo pedido',
+      'Consultar pedidos',
       'Clientes',
       'Tipos de prenda',
       'Promociones',
@@ -26,7 +29,10 @@ describe('Layout', () => {
       'Consumo de insumos',
     ])
     const ordersButton = within(nav).getByRole('button', { name: 'Pedidos' })
+    expect(ordersButton).toHaveAttribute('aria-expanded', 'true')
+    await user.click(ordersButton)
     expect(ordersButton).toHaveAttribute('aria-expanded', 'false')
+    expect(within(nav).queryByRole('link', { name: 'Nuevo pedido' })).not.toBeInTheDocument()
     await user.click(ordersButton)
     expect(ordersButton).toHaveAttribute('aria-expanded', 'true')
     const operation = within(nav).getByRole('region', { name: 'Operación' })

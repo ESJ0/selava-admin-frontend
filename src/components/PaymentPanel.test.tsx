@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PaymentPanel } from './PaymentPanel'
@@ -49,7 +49,7 @@ describe('PaymentPanel', () => {
     render(<PaymentPanel orderId={42} onPaymentSaved={refreshDetail}/>)
     await screen.findByText(/Ana López/)
     await user.type(screen.getByLabelText('Monto'), '20')
-    await user.selectOptions(screen.getByLabelText('Método de pago'), '1')
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Método de pago' })).getAllByRole('radio')[0])
     await user.type(screen.getByLabelText('Referencia'), ' TRANS-9 ')
     await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
     await waitFor(() => expect(mocks.register).toHaveBeenCalledWith(42, { metodo_pago_id: 1, monto: 20, referencia: 'TRANS-9' }))
@@ -64,7 +64,7 @@ describe('PaymentPanel', () => {
     render(<PaymentPanel orderId={42} onPaymentSaved={vi.fn().mockResolvedValue(true)}/>)
     await screen.findByText(/Ana López/)
     await user.type(screen.getByLabelText('Monto'), '71')
-    await user.selectOptions(screen.getByLabelText('Método de pago'), '1')
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Método de pago' })).getAllByRole('radio')[0])
     await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('El monto ingresado supera el saldo pendiente.')
     expect(mocks.register).not.toHaveBeenCalled()
