@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { CatalogPage } from './pages/CatalogPage'
+import { AdminHomePage } from './pages/AdminHomePage'
 import { ClientsPage } from './pages/ClientsPage'
 import { ClientDetailPage } from './pages/ClientDetailPage'
 import { LoginPage } from './pages/LoginPage'
@@ -22,7 +23,9 @@ function AdminApp() {
   const roleId = useAuth(state => state.roleId)
   if (!token) return <Navigate to="/login" replace />
   const allowed = (roles: number[], element: React.ReactNode) => roles.includes(roleId ?? 0) ? element : <Navigate to="/pedidos" replace />
+  const home = roleId === 3 ? '/pedidos' : '/inicio'
   return <Layout><Routes>
+    <Route path="/inicio" element={allowed([1, 2], <AdminHomePage />)} />
     <Route path="/servicios" element={allowed([1, 2], <CatalogPage kind="servicios" />)} />
     <Route path="/clientes" element={allowed([1, 2], <ClientsPage />)} />
     <Route path="/clientes/:clientId" element={allowed([1, 2], <ClientDetailPage />)} />
@@ -38,7 +41,7 @@ function AdminApp() {
     <Route path="/reportes/pedidos-por-estado" element={allowed([1], <OrdersByStatusReportPage />)} />
     <Route path="/reportes/consumo-insumos" element={allowed([1], <SupplyConsumptionReportPage />)} />
     <Route path="/operario/pedidos/:pedidoId" element={allowed([3], <OrderDetailPage operatorMode />)} />
-    <Route path="*" element={<Navigate to="/pedidos" replace />} />
+    <Route path="*" element={<Navigate to={home} replace />} />
   </Routes></Layout>
 }
 

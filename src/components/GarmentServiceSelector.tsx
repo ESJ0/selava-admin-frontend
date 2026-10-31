@@ -1,14 +1,15 @@
-import { Check, Plus } from 'lucide-react'
 import type { Servicio } from '../types'
+import { CheckIcon } from './admin/icons'
 
 interface GarmentServiceSelectorProps {
   services: Servicio[]
   selectedIds: number[]
   onToggle: (serviceId: number) => void
+  title?: string
 }
 
 function normalizedServiceName(name: string) {
-  return name.trim().toLocaleLowerCase('es-GT').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return name.trim().toLocaleLowerCase('es-GT').normalize('NFD').replace(/[̀-ͯ]/g, '')
 }
 
 function areIncompatible(first: string, second: string) {
@@ -16,36 +17,28 @@ function areIncompatible(first: string, second: string) {
   return names.has('lavado') && names.has('lavado en seco')
 }
 
-export function GarmentServiceSelector({ services, selectedIds, onToggle }: GarmentServiceSelectorProps) {
+export function GarmentServiceSelector({ services, selectedIds, onToggle, title = 'Servicios disponibles' }: GarmentServiceSelectorProps) {
   if (!services.length) {
-    return <div className="service-empty">No hay servicios activos disponibles para asignar.</div>
+    return <p className="ad-muted" style={{ margin: 0, padding: 14, borderRadius: 14, border: '1.5px dashed #DCE7EC', textAlign: 'center' }}>No hay servicios activos disponibles para asignar.</p>
   }
 
   const hasExclusiveSelection = selectedIds.some((selectedId) => {
-    const serviceName = services.find((service) => service.id === selectedId)?.nombre ?? ''
-    const normalizedName = normalizedServiceName(serviceName)
+    const normalizedName = normalizedServiceName(services.find((service) => service.id === selectedId)?.nombre ?? '')
     return normalizedName === 'lavado' || normalizedName === 'lavado en seco'
   })
 
   return <>
-    <div className="service-selector-heading">
-      <span>Servicios disponibles</span>
-      <small>{selectedIds.length} seleccionado{selectedIds.length === 1 ? '' : 's'}</small>
-    </div>
-    <div className="service-options" role="group" aria-label="Servicios disponibles">
+    <p className="ad-lbl2" style={{ display: 'flex', justifyContent: 'space-between' }}>{title} <span style={{ fontWeight: 500, color: '#5A7280' }}>{selectedIds.length} seleccionado{selectedIds.length === 1 ? '' : 's'}</span></p>
+    <div className="ad-svcs" role="group" aria-label={title}>
       {services.map((service) => {
         const selected = selectedIds.includes(service.id)
         const blocked = !selected && selectedIds.some((selectedId) => areIncompatible(service.nombre, services.find((selectedService) => selectedService.id === selectedId)?.nombre ?? ''))
-        return <label className={selected ? 'selected' : ''} key={service.id}>
-          <input type="checkbox" checked={selected} disabled={blocked} aria-label={service.nombre} onChange={() => onToggle(service.id)} />
-          <span>
-            <b>{service.nombre}</b>
-            {service.descripcion && <small>{service.descripcion}</small>}
-          </span>
-          <span className="service-action" aria-hidden="true">{selected ? <Check size={18} /> : <Plus size={18} />}</span>
-        </label>
+        return <button key={service.id} type="button" role="checkbox" aria-checked={selected} aria-label={service.nombre} className="ad-svc" disabled={blocked} onClick={() => onToggle(service.id)}>
+          <span className="cb"><CheckIcon size={12} strokeWidth={3.6} /></span>
+          <span><b>{service.nombre}</b>{service.descripcion && <small>{service.descripcion}</small>}</span>
+        </button>
       })}
     </div>
-    {hasExclusiveSelection && <div className="service-warning" role="status">Lavado y Lavado en seco no se pueden aplicar juntos por seguridad.</div>}
+    {hasExclusiveSelection && <p className="ad-svc-warn" role="status">Lavado y Lavado en seco no se pueden aplicar juntos por seguridad.</p>}
   </>
 }

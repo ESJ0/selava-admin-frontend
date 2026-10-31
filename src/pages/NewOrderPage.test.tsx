@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { createOrder, listGarmentTypes } from '../api/orders'
 import { quotePromotions } from '../api/promotions'
@@ -9,6 +10,7 @@ import { applied, group } from '../test/promotionFixtures'
 vi.mock('../api/orders', () => ({
   listGarmentTypes: vi.fn().mockResolvedValue([{ id: 2, nombre: 'Camisa', descripcion: '', precio: 25, modalidad_cobro: 'UNIDAD', activo: true }]),
   createOrder: vi.fn().mockResolvedValue({ id: 42, cliente_id: 1, prendas: [] }),
+  listOrders: vi.fn().mockResolvedValue({ pedidos: [], total: 0, pagina: 1, limite: 100 }),
   listServices: vi.fn().mockResolvedValue([{ id: 3, nombre: 'Lavado', precio_base: 25, activo: true }, { id: 4, nombre: 'Lavado en seco', precio_base: 35, activo: true }, { id: 5, nombre: 'Planchado', precio_base: 99, activo: true }]),
 }))
 vi.mock('../api/clients', () => ({
@@ -16,25 +18,41 @@ vi.mock('../api/clients', () => ({
 }))
 vi.mock('../api/promotions', () => ({ quotePromotions: vi.fn().mockResolvedValue({ grupos: [], total: 25 }) }))
 
-async function openGarmentsStep(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: /ana martínez/i }))
-  await user.click(screen.getByRole('button', { name: /siguiente/i }))
+type User = ReturnType<typeof userEvent.setup>
+
+async function openGarmentsStep(user: User) {
+  await user.click(await screen.findByRole('radio', { name: /ana martínez/i }))
+  await user.click(screen.getByRole('button', { name: 'Siguiente' }))
 }
+
+async function pickType(user: User, name: RegExp, block = 1) {
+  await user.click(within(screen.getByRole('radiogroup', { name: `Tipo de prenda ${block}` })).getByRole('radio', { name }))
+}
+
+/** Elige “En una semana” y devuelve la fecha ISO esperada. */
+async function pickDeliveryInAWeek(user: User) {
+  await user.click(screen.getByRole('button', { name: /en una semana/i }))
+  const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() + 7)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+const ticketTotal = () => within(document.querySelector('.ad-ticket-total') as HTMLElement)
 
 describe('NewOrderPage', () => {
   it('aplica el paquete a cinco unidades y guarda solo la selección cotizada por el backend', async () => {
     vi.mocked(quotePromotions).mockResolvedValueOnce({ grupos: [group], total: 125 }).mockResolvedValueOnce({ grupos: [{ ...group, aplicada: applied, subtotal_total: 105 }], total: 105 })
     const user = userEvent.setup()
-    render(<NewOrderPage />); await openGarmentsStep(user)
-    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '2')
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>); await openGarmentsStep(user)
+    await pickType(user, /^Camisa/)
     await user.clear(screen.getByLabelText('Cantidad de prendas')); await user.type(screen.getByLabelText('Cantidad de prendas'), '5')
-    await user.click(screen.getByRole('checkbox', { name: /aplicar los mismos servicios/i })); await user.click(screen.getByRole('checkbox', { name: 'Lavado' })); await user.click(screen.getByRole('checkbox', { name: 'Planchado' }))
-    await user.click(screen.getByRole('button', { name: /siguiente/i })); await user.type(screen.getByLabelText(/fecha de entrega/i), '2026-12-01'); await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    await user.selectOptions(await screen.findByLabelText('Promoción para Camisa'), '8')
-    expect(await within(document.querySelector('.order-total') as HTMLElement).findByText('Q105.00')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Crear pedido' }))
-    expect(createOrder).toHaveBeenLastCalledWith(1, '2026-12-01', '', [expect.objectContaining({ detalles: expect.arrayContaining([expect.objectContaining({ cantidad: 1, servicio_ids: [3, 5] })]) })], [{ tipo_prenda_id: 2, promocion_id: 8 }])
+    await user.click(screen.getByRole('switch', { name: /aplicar los mismos servicios/i })); await user.click(screen.getByRole('checkbox', { name: 'Lavado' })); await user.click(screen.getByRole('checkbox', { name: 'Planchado' }))
+    await user.click(screen.getByRole('button', { name: 'Siguiente' })); const date = await pickDeliveryInAWeek(user); await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    await user.click(within(await screen.findByRole('radiogroup', { name: 'Promoción para Camisa' })).getByRole('radio', { name: /Dos por cuarenta/ }))
+    expect(await ticketTotal().findByText(/Q\s*105\.00/)).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Crear pedido' }))
+    expect(createOrder).toHaveBeenLastCalledWith(1, date, '', [expect.objectContaining({ detalles: expect.arrayContaining([expect.objectContaining({ cantidad: 1, servicio_ids: [3, 5] })]) })], [{ tipo_prenda_id: 2, promocion_id: 8 }])
   })
+
   it.each([
     ['UNIDAD', 'Cantidad de prendas', '1.5'],
     ['LIBRA', 'Peso en libras', '0'],
@@ -44,66 +62,68 @@ describe('NewOrderPage', () => {
   ] as const)('rechaza medida inválida en %s: %s = %s', async (mode, label, value) => {
     vi.mocked(listGarmentTypes).mockResolvedValueOnce([{ id: 2, nombre: 'Prueba', precio: 25, modalidad_cobro: mode, activo: true }])
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await openGarmentsStep(user)
-    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '2')
+    await pickType(user, /^Prueba/)
     await user.clear(screen.getByLabelText(label))
     await user.type(screen.getByLabelText(label), value)
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
     expect(screen.getByText(/cantidad entera.*medida decimal/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/fecha de entrega/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Fecha de entrega' })).not.toBeInTheDocument()
   })
 
   it('el resumen redondea medio centavo por línea igual que PostgreSQL', async () => {
     vi.mocked(quotePromotions).mockResolvedValueOnce({ grupos: [], total: 0.62 })
     vi.mocked(listGarmentTypes).mockResolvedValueOnce([{ id: 2, nombre: 'Peso', precio: 1.23, modalidad_cobro: 'LIBRA', activo: true }])
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await openGarmentsStep(user)
-    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '2')
+    await pickType(user, /^Peso/)
     await user.clear(screen.getByLabelText('Peso en libras'))
     await user.type(screen.getByLabelText('Peso en libras'), '0.5')
     await user.click(screen.getByRole('checkbox', { name: 'Lavado' }))
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    await user.type(screen.getByLabelText(/fecha de entrega/i), '2026-12-01')
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    expect(screen.getByText('Subtotal Q0.62')).toBeInTheDocument()
-    expect(await within(document.querySelector('.order-total') as HTMLElement).findByText('Q0.62')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    await pickDeliveryInAWeek(user)
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    const line = document.querySelector('.ad-line') as HTMLElement
+    expect(line).toHaveTextContent(/0\.5 libras × Q1\.23 por libra/)
+    expect(line).toHaveTextContent(/Q\s*0\.62/)
+    expect(await ticketTotal().findByText(/Q\s*0\.62/)).toBeInTheDocument()
   })
 
   it('cobra cada prenda una sola vez aunque incluya varios servicios', async () => {
     vi.mocked(quotePromotions).mockResolvedValueOnce({ grupos: [], total: 50 })
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await openGarmentsStep(user)
-    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '2')
+    await pickType(user, /^Camisa/)
     await user.clear(screen.getByLabelText('Cantidad de prendas'))
     await user.type(screen.getByLabelText('Cantidad de prendas'), '2')
-    await user.click(screen.getByRole('checkbox', { name: /aplicar los mismos servicios/i }))
+    await user.click(screen.getByRole('switch', { name: /aplicar los mismos servicios/i }))
     await user.click(screen.getByRole('checkbox', { name: 'Lavado' }))
     await user.click(screen.getByRole('checkbox', { name: 'Planchado' }))
-    expect(screen.queryByText('Q99.00')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    await user.type(screen.getByLabelText(/fecha de entrega/i), '2026-12-01')
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    expect(await within(document.querySelector('.order-total') as HTMLElement).findByText('Q50.00')).toBeInTheDocument()
-    expect(document.querySelectorAll('.summary-garment')).toHaveLength(2)
-    expect(screen.getAllByText(/Subtotal Q25\.00/)).toHaveLength(2)
+    expect(screen.queryByText(/Q\s*99\.00/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    await pickDeliveryInAWeek(user)
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    expect(await ticketTotal().findByText(/Q\s*50\.00/)).toBeInTheDocument()
+    expect(document.querySelectorAll('.ad-line')).toHaveLength(1)
+    expect(document.querySelector('.ad-line')).toHaveTextContent(/2 unidades × Q25\.00 por unidad/)
   })
 
   it('impide seleccionar tipos antiguos sin precio configurado', async () => {
     vi.mocked(listGarmentTypes).mockResolvedValueOnce([{ id: 2, nombre: 'Camisa', precio: null, modalidad_cobro: 'UNIDAD', activo: true }])
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await openGarmentsStep(user)
-    expect(screen.getByRole('option', { name: /Camisa — Precio pendiente/ })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: /Camisa — Precio pendiente/ })).toBeDisabled()
   })
 
   it('requiere cliente y permite agregar varios tipos de prenda', async () => {
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await screen.findByText('Ana Martínez')
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
     expect(screen.getByText('Selecciona un cliente para continuar.')).toBeInTheDocument()
     await openGarmentsStep(user)
     expect(screen.getByText('Tipo de prenda 1')).toBeInTheDocument()
@@ -113,47 +133,48 @@ describe('NewOrderPage', () => {
 
   it('valida tipo y cantidad de cada detalle', async () => {
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await openGarmentsStep(user)
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
     expect(screen.getByText(/cantidad entera.*medida decimal/i)).toBeInTheDocument()
   })
 
   it('envía cliente, fecha y grupos de prendas en una sola llamada', async () => {
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await openGarmentsStep(user)
-    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '2')
+    await pickType(user, /^Camisa/)
     await user.click(screen.getByRole('checkbox', { name: 'Lavado' }))
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    await user.type(screen.getByLabelText(/fecha de entrega/i), '2026-09-01')
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    await user.click(screen.getByRole('button', { name: /crear pedido/i }))
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    const date = await pickDeliveryInAWeek(user)
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    await user.click(await screen.findByRole('button', { name: /crear pedido/i }))
 
     expect(createOrder).toHaveBeenCalledWith(
       1,
-      '2026-09-01',
+      date,
       '',
       [expect.objectContaining({ tipo_prenda_id: 2, cantidad: 1, detalles: [expect.objectContaining({ cantidad: 1, servicio_ids: [3] })] })],
       [],
     )
     expect(await screen.findByText('Pedido creado correctamente')).toBeInTheDocument()
+    expect(screen.getByText('#SLV-0042')).toBeInTheDocument()
   })
 
   it('requiere al menos un servicio para cada detalle', async () => {
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await openGarmentsStep(user)
-    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '2')
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
+    await pickType(user, /^Camisa/)
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
     expect(screen.getByText('Selecciona al menos un servicio para cada detalle de prenda.')).toBeInTheDocument()
   })
 
   it('bloquea lavado y lavado en seco como servicios simultáneos', async () => {
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await openGarmentsStep(user)
-    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '2')
+    await pickType(user, /^Camisa/)
     const lavado = screen.getByRole('checkbox', { name: 'Lavado' })
     const lavadoEnSeco = screen.getByRole('checkbox', { name: 'Lavado en seco' })
     await user.click(lavado)
@@ -167,19 +188,18 @@ describe('NewOrderPage', () => {
 
   it('genera una subsección por prenda y permite aplicar servicios por tipo', async () => {
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await openGarmentsStep(user)
-    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '2')
+    await pickType(user, /^Camisa/)
     await user.clear(screen.getByLabelText('Cantidad de prendas'))
     await user.type(screen.getByLabelText('Cantidad de prendas'), '3')
     expect(screen.getAllByText(/Prenda \d de 3/)).toHaveLength(3)
 
-    const commonOption = screen.getByRole('checkbox', { name: /aplicar los mismos servicios a este tipo/i })
-    await user.click(commonOption)
+    await user.click(screen.getByRole('switch', { name: /aplicar los mismos servicios a este tipo/i }))
     expect(screen.getAllByRole('checkbox', { name: 'Lavado' })).toHaveLength(1)
     await user.click(screen.getByRole('checkbox', { name: 'Lavado' }))
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    expect(screen.getByLabelText(/fecha de entrega/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    expect(screen.getByRole('group', { name: 'Fecha de entrega' })).toBeInTheDocument()
   })
 
   it('adapta medida, validación y resumen para libras y metros combinados', async () => {
@@ -190,27 +210,27 @@ describe('NewOrderPage', () => {
       { id: 4, nombre: 'Alfombra', precio: 30, modalidad_cobro: 'METRO', activo: true },
     ])
     const user = userEvent.setup()
-    render(<NewOrderPage />)
+    render(<MemoryRouter><NewOrderPage /></MemoryRouter>)
     await openGarmentsStep(user)
-    await user.selectOptions(screen.getByLabelText('Tipo de prenda *', { selector: 'select' }), '3')
+    await pickType(user, /^Canasta/)
     const pounds = screen.getByLabelText('Peso en libras')
     await user.clear(pounds); await user.type(pounds, '2.5')
     await user.click(screen.getByRole('checkbox', { name: 'Lavado' }))
 
     await user.click(screen.getByRole('button', { name: /agregar otro tipo/i }))
-    await user.selectOptions(screen.getAllByLabelText('Tipo de prenda *', { selector: 'select' })[1], '4')
+    await pickType(user, /^Alfombra/, 2)
     const meters = screen.getByLabelText('Metros')
     await user.clear(meters); await user.type(meters, '1.25')
     await user.click(screen.getAllByRole('checkbox', { name: 'Lavado' })[1])
 
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    await user.type(screen.getByLabelText(/fecha de entrega/i), '2026-12-01')
-    await user.click(screen.getByRole('button', { name: /siguiente/i }))
-    expect(await within(document.querySelector('.order-total') as HTMLElement).findByText('Q87.50')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    const date = await pickDeliveryInAWeek(user)
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    expect(await ticketTotal().findByText(/Q\s*87\.50/)).toBeInTheDocument()
     expect(screen.getByText(/2\.5 libras × Q20\.00 por libra/)).toBeInTheDocument()
     expect(screen.getByText(/1\.25 metros × Q30\.00 por metro/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /crear pedido/i }))
-    expect(createOrder).toHaveBeenCalledWith(1, '2026-12-01', '', [
+    await user.click(await screen.findByRole('button', { name: /crear pedido/i }))
+    expect(createOrder).toHaveBeenCalledWith(1, date, '', [
       expect.objectContaining({ tipo_prenda_id: 3, cantidad: 2.5, detalles: [expect.objectContaining({ cantidad: 2.5 })] }),
       expect.objectContaining({ tipo_prenda_id: 4, cantidad: 1.25, detalles: [expect.objectContaining({ cantidad: 1.25 })] }),
     ], [])

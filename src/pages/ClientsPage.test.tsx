@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ClientsPage } from './ClientsPage'
 
 const mocks = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn() }))
+vi.mock('../api/orders', () => ({ listOrders: vi.fn().mockResolvedValue({ pedidos: [], total: 0, pagina: 1, limite: 100 }) }))
 vi.mock('../api/clients', () => ({
   listClients: mocks.list,
   createClient: mocks.create,
@@ -38,13 +39,13 @@ describe('ClientsPage', () => {
     expect(screen.getByText('4521986-3')).toBeInTheDocument()
     expect(screen.getByLabelText('Cliente con alerta activa')).toHaveAttribute('title', 'Cliente con alerta activa')
     expect(screen.getAllByText('Activo').length).toBeGreaterThan(0)
-    expect(screen.getByText('6 clientes')).toBeInTheDocument()
+    expect(screen.getByText('Mostrando 1–5 de 6 clientes')).toBeInTheDocument()
   })
 
   it('busca por nombre, teléfono y NIT sobre el listado real', async () => {
     const user = userEvent.setup()
     renderPage()
-    const search = await screen.findByPlaceholderText('Buscar por nombre, teléfono o NIT...')
+    const search = await screen.findByPlaceholderText('Buscar por nombre, teléfono, correo o NIT…')
     await user.type(search, '5523')
     expect(screen.getByText('Carlos Hernández')).toBeInTheDocument()
     expect(screen.queryByText('María López')).not.toBeInTheDocument()
@@ -57,10 +58,10 @@ describe('ClientsPage', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('María López')
-    await user.click(screen.getByRole('button', { name: 'Inactivo' }))
+    await user.click(screen.getByRole('tab', { name: 'Inactivos' }))
     expect(screen.getByText('Carlos Hernández')).toBeInTheDocument()
     expect(screen.queryByText('María López')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Activo' }))
+    await user.click(screen.getByRole('tab', { name: 'Activos' }))
     expect(screen.queryByText('Carlos Hernández')).not.toBeInTheDocument()
     expect(screen.getByText('María López')).toBeInTheDocument()
   })
@@ -109,6 +110,8 @@ describe('ClientsPage', () => {
     await user.click(within(form).getByRole('button', { name: 'Guardar cliente' }))
     await waitFor(() => expect(mocks.create).toHaveBeenCalledWith({ nombre: 'Elena', apellido: 'Paz', telefono: '5512-8899', email: 'elena@example.com', direccion: 'Zona 10' }))
     expect(await screen.findByText('Cliente registrado correctamente.')).toBeInTheDocument()
+    expect(screen.getByText('¡Cliente registrado!')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Listo' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(mocks.list).toHaveBeenCalledTimes(2)
   })
@@ -147,7 +150,7 @@ describe('ClientsPage', () => {
   it('muestra el estado sin resultados', async () => {
     const user = userEvent.setup()
     renderPage()
-    const search = await screen.findByPlaceholderText('Buscar por nombre, teléfono o NIT...')
+    const search = await screen.findByPlaceholderText('Buscar por nombre, teléfono, correo o NIT…')
     await user.type(search, 'cliente inexistente')
     expect(screen.getByText('No se encontraron clientes.')).toBeInTheDocument()
   })
