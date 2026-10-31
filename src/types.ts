@@ -1,6 +1,7 @@
 export interface Entity { id: number; nombre: string; activo: boolean }
-export interface Servicio extends Entity { descripcion?: string; precio_base: number; tiempo_estimado_horas?: number }
-export interface TipoPrenda extends Entity { descripcion?: string }
+export interface Servicio extends Entity { descripcion?: string; precio_base?: number; tiempo_estimado_horas?: number }
+export type ModalidadCobro = 'UNIDAD' | 'LIBRA' | 'METRO'
+export interface TipoPrenda extends Entity { descripcion?: string; precio: number | null; modalidad_cobro: ModalidadCobro }
 export interface MetodoPago extends Entity {}
 export interface Cliente extends Entity {
   apellido: string
@@ -24,7 +25,7 @@ export interface ClienteCreate {
 export type ClienteUpdate = Partial<ClienteCreate & Pick<Cliente, 'activo'>>
 export type ClienteListResponse = Cliente[]
 export interface PrendaServicioCreada { id: number; prenda_id: number; servicio_id: number; precio_aplicado: number; servicio?: Servicio }
-export interface PrendaCreada { id: number; pedido_id: number; tipo_prenda_id: number; cantidad: number; color?: string; descripcion?: string; servicios: PrendaServicioCreada[] }
+export interface PrendaCreada { precio_aplicado?: number | null; modalidad_cobro_aplicada?: ModalidadCobro; id: number; pedido_id: number; tipo_prenda_id: number; cantidad: number; color?: string; descripcion?: string; servicios: PrendaServicioCreada[] }
 export interface Pedido { id: number; cliente_id: number; estado_actual_id: number; total: number; prendas: PrendaCreada[] }
 export interface PrendaDetalleDraft { cantidad: number; color: string; descripcion: string; servicio_ids: number[] }
 export interface PrendaDraft {
@@ -39,9 +40,26 @@ export type CatalogKind = 'servicios' | 'tipos-prenda' | 'metodos-pago'
 export interface EstadoPedido {
   id: number
   nombre: string
+  codigo?: string
   orden: number
+  es_obligatorio?: boolean
+  es_terminal?: boolean
+  es_cancelacion?: boolean
   created_at?: string
   updated_at?: string
+}
+
+export interface EstadoFlujoPedido extends EstadoPedido {
+  servicios: Pick<Servicio, 'id' | 'nombre'>[]
+  completado: boolean
+  actual: boolean
+}
+
+export interface FlujoOperativoPedido {
+  estados: EstadoFlujoPedido[]
+  siguiente_estado?: EstadoPedido
+  progreso_porcentaje: number
+  cancelado: boolean
 }
 
 export interface PedidoResumen {
@@ -158,6 +176,7 @@ export interface MovimientoInventarioCreatePayload {
 }
 
 export interface PedidoDetalle {
+  promociones_aplicadas?: import('./types/promotion').AppliedPromotion[]
   id: number
   cliente_id: number
   usuario_id: number
@@ -172,6 +191,7 @@ export interface PedidoDetalle {
   prendas: PrendaDetalle[]
   estado_actual: EstadoPedido
   pagos: PagoDetalle[]
+  flujo_operativo: FlujoOperativoPedido
 }
 
 export interface HistorialEstado {
@@ -215,6 +235,8 @@ export interface ReportePedidosPorEstadoDetalle {
 }
 
 export interface ReportePedidosPorEstado {
+  fecha_inicio: string
+  fecha_fin: string
   total_pedidos: number
   pedidos_por_estado: ReportePedidosPorEstadoDetalle[]
 }

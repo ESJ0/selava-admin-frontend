@@ -1,20 +1,8 @@
-import { useState, type FormEvent } from 'react'
-import { Navigate } from 'react-router-dom'
-import { api, errorMessage } from '../api/client'
-import { useAuth } from '../store/auth'
+import { useEffect } from 'react'
+
+const unifiedLoginURL = (import.meta.env.VITE_LOGIN_URL || 'http://localhost:5174/login').replace(/\/+$/, '')
 
 export function LoginPage() {
-  const token = useAuth((s) => s.token); const roleId = useAuth((s) => s.roleId); const setToken = useAuth((s) => s.setToken)
-  const [error, setError] = useState(''); const [loading, setLoading] = useState(false)
-  if (token) return <Navigate to={roleId === 3 ? '/pedidos' : '/servicios'} replace />
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setLoading(true); setError(''); const data = new FormData(event.currentTarget)
-    try { const response = await api.post<{token:string}>('/auth/login', { email: data.get('email'), password: data.get('password') }); setToken(response.data.token) }
-    catch (e) { setError(errorMessage(e)) } finally { setLoading(false) }
-  }
-  return <main className="login-page"><section className="login-card"><div className="brand brand-login"><span className="brand-mark">✦</span><span>SELAVA</span></div>
-    <h1>Bienvenido</h1><p>Ingresa a la administración de tu lavandería.</p><form onSubmit={submit}>
-      <label>Correo electrónico<input name="email" type="email" required autoComplete="email" /></label><label>Contraseña<input name="password" type="password" required autoComplete="current-password" /></label>
-      {error && <div className="alert error">{error}</div>}<button className="primary wide" disabled={loading}>{loading ? 'Ingresando…' : 'Ingresar'}</button>
-    </form></section></main>
+  useEffect(() => { if (import.meta.env.MODE !== 'test') window.location.replace(unifiedLoginURL) }, [])
+  return <main className="login-page"><section className="login-card"><div className="brand brand-login"><span className="brand-mark">✦</span><span>SELAVA</span></div><h1>Acceso unificado</h1><p>Te estamos llevando al inicio de sesión de SeLava.</p><a className="primary wide" href={unifiedLoginURL}>Continuar al login</a></section></main>
 }

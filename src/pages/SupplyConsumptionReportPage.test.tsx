@@ -3,9 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SupplyConsumptionReportPage } from './SupplyConsumptionReportPage'
 
-const mocks = vi.hoisted(() => ({ getReport: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getReport: vi.fn(), exportPdf: vi.fn() }))
 
 vi.mock('../api/reports', () => ({ getSupplyConsumptionReport: mocks.getReport }))
+vi.mock('../utils/reportPdf', () => ({ exportSupplyConsumptionReportPdf: mocks.exportPdf }))
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   BarChart: ({ children }: { children: React.ReactNode }) => <svg>{children}</svg>,
@@ -81,5 +82,13 @@ describe('SupplyConsumptionReportPage', () => {
 
     expect(await screen.findByText('No hay consumo en este período')).toBeInTheDocument()
     expect(screen.getByText('Sin salidas registradas')).toBeInTheDocument()
+  })
+
+  it('descarga el reporte consultado en PDF', async () => {
+    const user = userEvent.setup()
+    render(<SupplyConsumptionReportPage/>)
+    await screen.findByLabelText('Resumen de consumo de insumos')
+    await user.click(screen.getByRole('button', { name: 'Descargar PDF' }))
+    expect(mocks.exportPdf).toHaveBeenCalledWith(report)
   })
 })

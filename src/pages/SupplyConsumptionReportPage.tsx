@@ -1,9 +1,10 @@
-import { Activity, CalendarDays, ChartBarBig, PackageSearch, RefreshCw, Scale, TrendingDown } from 'lucide-react'
+import { Activity, CalendarDays, ChartBarBig, Download, PackageSearch, RefreshCw, Scale, TrendingDown } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { errorMessage } from '../api/client'
 import { getSupplyConsumptionReport } from '../api/reports'
 import type { ReporteConsumoInsumoDetalle, ReporteConsumoInsumos } from '../types'
+import { exportSupplyConsumptionReportPdf } from '../utils/reportPdf'
 
 interface Periodo {
   inicio: string
@@ -92,6 +93,7 @@ export function SupplyConsumptionReportPage() {
   return <section className="report-page supply-consumption-report-page">
     <header className="page-heading report-heading">
       <div><h1>Consumo de insumos</h1><p>Analiza las salidas de inventario registradas por período.</p></div>
+      {report && <button className="secondary report-download" type="button" onClick={() => exportSupplyConsumptionReportPdf(report)}><Download size={18}/>Descargar PDF</button>}
     </header>
 
     <form className="report-filters" aria-label="Filtros del reporte de consumo de insumos" onSubmit={submit}>

@@ -1,9 +1,10 @@
-import { CalendarDays, ChartColumnBig, CircleDollarSign, CreditCard, ReceiptText, RefreshCw, ShoppingBag } from 'lucide-react'
+import { CalendarDays, ChartColumnBig, CircleDollarSign, CreditCard, Download, ReceiptText, RefreshCw, ShoppingBag } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { errorMessage } from '../api/client'
 import { getSalesReport } from '../api/reports'
 import type { ReporteVentas } from '../types'
+import { exportSalesReportPdf } from '../utils/reportPdf'
 
 interface Periodo {
   inicio: string
@@ -95,6 +96,7 @@ export function SalesReportPage() {
   return <section className="report-page sales-report-page">
     <header className="page-heading report-heading">
       <div><h1>Reporte de ventas</h1><p>Consulta el comportamiento de tus ventas por período.</p></div>
+      {report && <button className="secondary report-download" type="button" onClick={() => exportSalesReportPdf(report)}><Download size={18}/>Descargar PDF</button>}
     </header>
 
     <form className="report-filters" aria-label="Filtros del reporte de ventas" onSubmit={submit}>

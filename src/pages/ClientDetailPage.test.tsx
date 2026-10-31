@@ -3,8 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ClientDetailPage } from './ClientDetailPage'
+import { useOrdersOverview } from '../hooks/useOrdersOverview'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), deactivate: vi.fn() }))
+vi.mock('../api/orders', () => ({
+  listOrders: vi.fn().mockResolvedValue({ pedidos: [{ id: 42, fecha_recibido: '2026-10-05T16:00:00Z', total: 145, activo: true, cliente: { id: 1, nombre: 'María', apellido: 'López', telefono: '5512-3456' }, estado_actual: { id: 1, nombre: 'Recibido', orden: 1 } }], total: 1, pagina: 1, limite: 100 }),
+}))
 vi.mock('../api/clients', () => ({
   getClient: mocks.get,
   updateClient: mocks.update,
@@ -20,6 +24,7 @@ function renderDetail() {
 
 describe('ClientDetailPage', () => {
   beforeEach(() => {
+    useOrdersOverview.setState({ orders: [], total: 0, status: 'idle', error: '', loadedAt: 0 })
     vi.clearAllMocks()
     vi.stubGlobal('confirm', vi.fn(() => true))
     mocks.get.mockResolvedValue(client)
@@ -32,7 +37,7 @@ describe('ClientDetailPage', () => {
     expect(await screen.findByRole('heading', { name: 'María López' })).toBeInTheDocument()
     expect(screen.getByText('5512-3456')).toBeInTheDocument()
     expect(screen.getByText('maria@example.com')).toBeInTheDocument()
-    expect(screen.getByText(/consulta de pedidos por cliente aún no está disponible/i)).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /#SLV-0042/ })).toHaveAttribute('href', '/pedidos/42')
     expect(mocks.get).toHaveBeenCalledWith(1, expect.any(AbortSignal))
   })
 
@@ -52,6 +57,7 @@ describe('ClientDetailPage', () => {
     const user = userEvent.setup()
     const { unmount } = renderDetail()
     await user.click(await screen.findByRole('button', { name: 'Desactivar' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sí, desactivar' }))
     await waitFor(() => expect(mocks.deactivate).toHaveBeenCalledWith(1))
     expect(screen.getByText('Cliente desactivado correctamente.')).toBeInTheDocument()
     unmount()

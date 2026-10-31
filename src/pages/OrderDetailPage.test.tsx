@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrderDetailPage } from './OrderDetailPage'
 import { useAuth } from '../store/auth'
+import { applied } from '../test/promotionFixtures'
 
 const mocks = vi.hoisted(() => ({
   detail: vi.fn(),
@@ -43,9 +44,20 @@ const detail = {
   activo: true,
   cliente: { id: 1, nombre: 'Ana', apellido: 'Martínez', telefono: '5555-5555', email: 'ana@example.com', activo: true },
   estado_actual: { id: 1, nombre: 'Recibido', orden: 1 },
+  flujo_operativo: {
+    progreso_porcentaje: 25,
+    cancelado: false,
+    siguiente_estado: { id: 5, nombre: 'En lavado', orden: 20 },
+    estados: [
+      { id: 1, nombre: 'Recibido', orden: 10, servicios: [], completado: true, actual: true },
+      { id: 5, nombre: 'En lavado', orden: 20, servicios: [{ id: 3, nombre: 'Lavado' }], completado: false, actual: false },
+      { id: 2, nombre: 'Rackeado', orden: 50, servicios: [], completado: false, actual: false },
+      { id: 3, nombre: 'Finalizado', orden: 60, servicios: [], completado: false, actual: false },
+    ],
+  },
   prendas: [{
     id: 9, pedido_id: 42, tipo_prenda_id: 2, cantidad: 2, color: 'Azul',
-    tipo_prenda: { id: 2, nombre: 'Camisa', activo: true },
+    tipo_prenda: { id: 2, nombre: 'Camisa', precio: 999, modalidad_cobro: 'UNIDAD', activo: true },
     servicios: [{ id: 5, prenda_id: 9, servicio_id: 3, precio_aplicado: 25, servicio: { id: 3, nombre: 'Lavado', activo: true, precio_base: 25 } }],
   }],
   pagos: [],
@@ -56,6 +68,17 @@ function renderPage(operatorMode = false) {
 }
 
 describe('OrderDetailPage', () => {
+  it('presenta la promoción persistida aunque el catálogo tenga otro precio y modalidad', async () => {
+    useAuth.setState({ roleId: 3 })
+    mocks.detail.mockResolvedValue({ ...detail, total: 105, promociones_aplicadas: [applied] })
+    mocks.history.mockResolvedValue([]); mocks.statuses.mockResolvedValue([])
+    renderPage()
+    expect(await screen.findByText('Dos por cuarenta')).toBeInTheDocument()
+    expect(screen.getByText('4 unidades')).toBeInTheDocument()
+    expect(screen.getByText(/Q\s*80\.00/)).toBeInTheDocument()
+    expect(screen.getByText(/1 unidad × Q\s*25\.00/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Q\s*105\.00/).length).toBeGreaterThan(0)
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     useAuth.setState({ roleId: 2 })
@@ -78,11 +101,37 @@ describe('OrderDetailPage', () => {
     mocks.registerPayment.mockResolvedValue({})
   })
 
+  it('usa modalidad congelada y redondeo decimal aun si cambió el catálogo', async () => {
+    mocks.detail.mockResolvedValue({ ...detail, prendas: [{ ...detail.prendas[0], cantidad: 0.5, precio_aplicado: 1.23, modalidad_cobro_aplicada: 'LIBRA', tipo_prenda: { ...detail.prendas[0].tipo_prenda, modalidad_cobro: 'METRO' } }] })
+    renderPage()
+    expect(await screen.findByText('0.5 libras')).toBeInTheDocument()
+    expect(screen.getByText('Azul')).toBeInTheDocument()
+    expect(screen.getByText(/0.5 libras ×.*por libra/)).toBeInTheDocument()
+    expect(document.querySelector('.ad-gitem')).toHaveTextContent(/Q\s*0\.62/)
+  })
+
+  it('mantiene unidades en históricos sin instantánea aunque cambie el catálogo', async () => {
+    mocks.detail.mockResolvedValue({ ...detail, prendas: [{ ...detail.prendas[0], tipo_prenda: { ...detail.prendas[0].tipo_prenda, modalidad_cobro: 'LIBRA' } }] })
+    renderPage()
+    expect(await screen.findByText('2 unidades')).toBeInTheDocument()
+  })
+
+  it('muestra la tarifa congelada de la prenda y no los precios actuales del catálogo', async () => {
+    mocks.detail.mockResolvedValue({ ...detail, prendas: [{ ...detail.prendas[0], precio_aplicado: 25, servicios: [{ ...detail.prendas[0].servicios[0], precio_aplicado: 0 }] }] })
+    renderPage()
+    expect(await screen.findByText('Precio aplicado')).toBeInTheDocument()
+    expect(screen.getByText('Lavado')).toBeInTheDocument()
+    expect(screen.queryByText(/Q\s*999\.00/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Q\s*0\.00 por unidad/)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/Q\s*50\.00/).length).toBeGreaterThan(0)
+  })
+
   it('muestra cliente, prendas, servicios, total e historial con responsable', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { name: '#SLV-0042' })).toBeInTheDocument()
     expect(screen.getByText('Ana Martínez')).toBeInTheDocument()
-    expect(screen.getByText('Camisa × 2')).toBeInTheDocument()
+    expect(screen.getByText('2 unidades')).toBeInTheDocument()
+    expect(screen.getByText('Azul')).toBeInTheDocument()
     expect(screen.getByText('Lavado')).toBeInTheDocument()
     expect(screen.getAllByText(/Q\s*50\.00/).length).toBeGreaterThan(0)
     expect(screen.getByText('Luis Pérez')).toBeInTheDocument()
@@ -99,17 +148,48 @@ describe('OrderDetailPage', () => {
     expect(await screen.findByText(/fue cancelado correctamente/i)).toBeInTheDocument()
   })
 
-  it('permite al operario avanzar a Rackeado y excluye Cancelado', async () => {
+  it('permite a la recepcionista avanzar únicamente a la etapa aplicable siguiente', async () => {
     const user = userEvent.setup()
+    renderPage()
+    expect(await screen.findByText('Aplica por: Lavado')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Observaciones'), 'Lista para entregar')
+    await user.click(screen.getByRole('button', { name: /avanzar a en lavado/i }))
+    await waitFor(() => expect(mocks.updateStatus).toHaveBeenCalledWith(42, 5, 'Lista para entregar'))
+  })
+
+  it('muestra el timeline al operario sin permitirle cambiar el estado', async () => {
     useAuth.setState({ roleId: 3 })
     renderPage(true)
-    const selector = await screen.findByLabelText('Nuevo estado')
+
+    expect(await screen.findByRole('list', { name: 'Etapas del pedido' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /avanzar a/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Observaciones')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^cancelar pedido$/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'Cancelado' })).not.toBeInTheDocument()
-    await user.selectOptions(selector, '2')
-    await user.type(screen.getByLabelText('Observaciones'), 'Lista para entregar')
-    await user.click(screen.getByRole('button', { name: /actualizar estado/i }))
-    await waitFor(() => expect(mocks.updateStatus).toHaveBeenCalledWith(42, 2, 'Lista para entregar'))
+  })
+
+  it('solicita confirmación antes de avanzar a Finalizado', async () => {
+    const finalStatus = { id: 3, nombre: 'Finalizado', codigo: 'FINALIZADO', orden: 60, es_terminal: true }
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      estado_actual: { id: 2, nombre: 'Rackeado', orden: 50 },
+      flujo_operativo: { ...detail.flujo_operativo, siguiente_estado: finalStatus },
+    })
+    renderPage()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Avanzar a Finalizado' }))
+    expect(mocks.updateStatus).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Finalizar pedido' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Sí, finalizar pedido' }))
+    await waitFor(() => expect(mocks.updateStatus).toHaveBeenCalledWith(42, 3, ''))
+  })
+
+  it('muestra el rechazo de una transición y recarga el progreso real', async () => {
+    mocks.updateStatus.mockRejectedValueOnce({ isAxiosError: true, response: { status: 409, data: { error: 'La transición ya no está disponible.' } } })
+    renderPage()
+
+    await userEvent.click(await screen.findByRole('button', { name: /avanzar a en lavado/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('La transición ya no está disponible.')
+    expect(mocks.detail).toHaveBeenCalledTimes(2)
   })
 
   it('muestra carga, 404 y permite reintentar sin datos anteriores', async () => {
@@ -152,19 +232,18 @@ describe('OrderDetailPage', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: '#SLV-0042' })).not.toBeInTheDocument())
   })
 
-  it('bloquea estados terminales incluso si el catálogo contiene otros órdenes posteriores', async () => {
-    mocks.detail.mockResolvedValue({ ...detail, estado_actual: { id: 3, nombre: 'Entregado', orden: 3 } })
+  it('bloquea cambios cuando el flujo llegó a Finalizado', async () => {
+    mocks.detail.mockResolvedValue({ ...detail, estado_actual: { id: 3, nombre: 'Finalizado', orden: 60 }, flujo_operativo: { ...detail.flujo_operativo, progreso_porcentaje: 100, siguiente_estado: undefined, estados: detail.flujo_operativo.estados.map(stage => ({ ...stage, completado: true, actual: stage.nombre === 'Finalizado' })) } })
     mocks.statuses.mockResolvedValue([{ id: 9, nombre: 'Otro', orden: 5 }])
     renderPage(true)
-    expect(await screen.findByText('Este pedido ya no tiene estados pendientes.')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Nuevo estado')).not.toBeInTheDocument()
+    expect(await screen.findByText('El flujo operativo está finalizado.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /avanzar a/i })).not.toBeInTheDocument()
   })
 
   it('limita observaciones según bytes UTF-8 del contrato backend', async () => {
     renderPage(true)
-    await userEvent.selectOptions(await screen.findByLabelText('Nuevo estado'), '2')
-    await userEvent.type(screen.getByLabelText('Observaciones'), 'ñ'.repeat(128))
-    await userEvent.click(screen.getByRole('button', { name: 'Actualizar estado' }))
+    fireEvent.change(await screen.findByLabelText('Observaciones'), { target: { value: 'ñ'.repeat(128) } })
+    await userEvent.click(screen.getByRole('button', { name: /avanzar a en lavado/i }))
     expect(await screen.findByRole('alert')).toHaveTextContent('demasiado largas')
     expect(mocks.updateStatus).not.toHaveBeenCalled()
   })

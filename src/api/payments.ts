@@ -10,7 +10,7 @@ export async function getOrderPayments(orderId: number, signal?: AbortSignal) {
 }
 
 export async function listPaymentMethods(signal?: AbortSignal) {
-  return (await api.get<MetodoPago[]>('/metodos-pago/', { signal })).data
+  return (await api.get<MetodoPago[]>('/pedidos/catalogos/metodos-pago', { signal })).data
 }
 
 export async function registerOrderPayment(orderId: number, payload: PagoCreatePayload) {

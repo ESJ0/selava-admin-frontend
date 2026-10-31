@@ -1,11 +1,10 @@
-import { AlertTriangle, CheckCircle2, CreditCard, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { errorMessage, httpStatus } from '../api/client'
 import { getOrderBalance, getOrderPayments, listPaymentMethods, registerOrderPayment } from '../api/payments'
 import type { MetodoPago, PagoDetalle, SaldoPedido } from '../types'
+import { formatDateTime, money, paymentIcon } from '../utils/adminFormat'
+import { CardIcon, PathIcon, RefreshIcon, SpinnerIcon } from './admin/icons'
 
-const money = new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' })
-const dateTime = new Intl.DateTimeFormat('es-GT', { dateStyle: 'medium', timeStyle: 'short' })
 
 function paymentError(cause: unknown) {
   const message = errorMessage(cause)
@@ -100,35 +99,49 @@ export function PaymentPanel({ orderId, onPaymentSaved }: { orderId: number; onP
     }
   }
 
-  return <section className="detail-card payment-panel">
-    <header><CreditCard size={20}/><h2>Cobro y pagos</h2></header>
-    {loading ? <div className="state compact" role="status"><span className="spinner"/>Cargando saldo e historial…</div> : error && !balance ? <div className="payment-content"><div className="alert error" role="alert"><AlertTriangle size={19}/><span>{error}</span></div><button className="secondary wide" onClick={() => void load()}><RefreshCw size={17}/>Reintentar</button></div> : <div className="payment-content">
-      {balance && <div className="balance-grid" aria-label="Resumen de saldo">
-        <span>Total<strong>{money.format(balance.total)}</strong></span>
-        <span>Pagado<strong>{money.format(balance.total_pagado)}</strong></span>
-        <span>Saldo pendiente<strong>{money.format(balance.saldo_pendiente)}</strong></span>
-      </div>}
+  const total = balance?.total ?? 0
+  const paidPct = total > 0 ? Math.min(100, Math.round(((balance?.total_pagado ?? 0) / total) * 100)) : 0
+  const due = balance?.saldo_pendiente ?? 0
 
-      {notice && <div className="alert success" role="status"><CheckCircle2 size={18}/>{notice}</div>}
-      {error && <div className="alert error" role="alert"><AlertTriangle size={18}/>{error}</div>}
+  return <section className="ad-card ad-st" style={{ animationDelay: '.3s' }} aria-labelledby="payments-title">
+    <div className="ad-hd2"><span className="ad-hi"><CardIcon size={20} /></span><h2 id="payments-title">Cobro y pagos</h2></div>
+    {loading ? <div className="ad-state" role="status" style={{ padding: '24px 0' }}><SpinnerIcon className="ad-spin" size={24} />Cargando saldo e historial…</div>
+      : error && !balance ? <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><p className="ad-perr" role="alert">{error}</p><button className="ad-btn-dark" type="button" onClick={() => void load()}><RefreshIcon size={17} />Reintentar</button></div>
+      : <>
+        {balance && <>
+          <div className="ad-paybar" role="img" aria-label={`Pagado ${money(balance.total_pagado)} de ${money(balance.total)}`}><span className="pp" style={{ width: `${paidPct}%` }} />{due > 0 && <span className="pd" />}</div>
+          <dl className="ad-tri2" aria-label="Resumen de saldo">
+            <div><dt>Total</dt><dd>{money(balance.total)}</dd></div>
+            <div><dt>Pagado</dt><dd style={{ color: '#06709F' }}>{money(balance.total_pagado)}</dd></div>
+            <div className={due > 0 ? 'duebx' : 'okbx'}><dt>Saldo</dt><dd>{money(balance.saldo_pendiente)}</dd></div>
+          </dl>
+        </>}
 
-      {balance && balance.saldo_pendiente > 0 && <form className="payment-form" onSubmit={submit}>
-        <div className="form-grid">
-          <label>Monto *<input name="amount" aria-label="Monto" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label>
-          <label>Método de pago *<select name="payment_method" aria-label="Método de pago" value={methodId} onChange={(event) => setMethodId(event.target.value)} required><option value="">Seleccionar método</option>{methods.map((method) => <option key={method.id} value={method.id}>{method.nombre}</option>)}</select></label>
-        </div>
-        <label>Referencia<input name="reference" aria-label="Referencia" value={reference} maxLength={100} onChange={(event) => setReference(event.target.value)} placeholder="Opcional" /></label>
-        <button className="primary wide" disabled={saving}>{saving ? 'Registrando…' : 'Registrar pago'}</button>
-      </form>}
-      {balance?.saldo_pendiente === 0 && <div className="paid-state"><CheckCircle2 size={20}/>Pedido pagado en su totalidad.</div>}
+        {notice && <p className="ad-pop" role="status" style={{ margin: '16px 0 0', padding: '12px 16px', borderRadius: 14, background: '#E2F6EC', color: '#1F5E43', fontWeight: 600 }}>{notice}</p>}
 
-      <div className="payment-history">
-        <h3>Historial de pagos</h3>
-        {!payments.length ? <p className="empty-block">Sin pagos registrados.</p> : payments.map((payment) => <article key={payment.id}>
-          <div><strong>{payment.metodo_pago.nombre}</strong><small>{dateTime.format(new Date(payment.fecha_pago))}</small><small>{payment.usuario ? `${payment.usuario.nombre} ${payment.usuario.apellido}` : `Usuario #${payment.usuario_id}`}{payment.referencia ? ` · ${payment.referencia}` : ''}</small></div>
-          <b>{money.format(payment.monto)}</b>
-        </article>)}
-      </div>
-    </div>}
+        {balance && due > 0 && <form className="ad-payf" onSubmit={submit} noValidate>
+          <div><label className="ad-lbl3" htmlFor="pay-amount">Monto <b>*</b></label>
+            <div className="ad-amt"><span aria-hidden="true">Q</span><input id="pay-amount" aria-label="Monto" name="amount" type="text" inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => { setAmount(event.target.value.replace(/[^0-9.,]/g, '').replace(',', '.')); setError('') }} /><button type="button" onClick={() => { setAmount(due.toFixed(2)); setError('') }}>Saldo total</button></div></div>
+          <div><p className="ad-lbl3" id="pay-methods-label">Método de pago <b>*</b></p>
+            {methods.length === 0 ? <p className="ad-muted" style={{ margin: 0 }}>No hay métodos de pago activos.</p> : <div className="ad-methods" role="radiogroup" aria-label="Método de pago">
+              {methods.map((method) => <button key={method.id} type="button" role="radio" aria-checked={methodId === String(method.id)} className="ad-mth" onClick={() => { setMethodId(String(method.id)); setError('') }}>
+                <PathIcon d={paymentIcon(method.nombre)} size={20} />{method.nombre}
+              </button>)}
+            </div>}</div>
+          <div><label className="ad-lbl3" htmlFor="pay-ref">Referencia</label><input className="ad-in3" id="pay-ref" name="reference" value={reference} maxLength={100} onChange={(event) => setReference(event.target.value)} placeholder="Opcional" /></div>
+          {error && <p className="ad-perr" role="alert">{error}</p>}
+          <button className="ad-payb" type="submit" disabled={saving}>{saving && <SpinnerIcon className="ad-spin" size={18} />}{saving ? 'Registrando…' : 'Registrar pago'}</button>
+        </form>}
+        {balance && due <= 0 && <p className="ad-pop" style={{ margin: '16px 0 0', padding: '14px 16px', borderRadius: 14, background: '#E2F6EC', color: '#1F5E43', fontWeight: 600 }}>Pedido pagado por completo.</p>}
+        {error && balance && due <= 0 && <p className="ad-perr" role="alert" style={{ marginTop: 12 }}>{error}</p>}
+
+        <h3 className="ad-disp" style={{ margin: '22px 0 10px', fontSize: 18, fontWeight: 600 }}>Historial de pagos</h3>
+        {!payments.length ? <p style={{ margin: 0, padding: 16, borderRadius: 14, border: '1.5px dashed #DCE7EC', color: '#5A7280', fontSize: 14, textAlign: 'center' }}>Sin pagos registrados.</p>
+          : payments.map((payment) => <div className="ad-prec" key={payment.id}>
+            <span className="ad-pmi"><PathIcon d={paymentIcon(payment.metodo_pago.nombre)} size={20} /></span>
+            <span style={{ minWidth: 0 }}><span style={{ display: 'block', fontWeight: 600 }}>{payment.metodo_pago.nombre}</span><span style={{ fontSize: 13, color: '#5A7280' }}>{formatDateTime(payment.fecha_pago)} · {payment.usuario ? `${payment.usuario.nombre} ${payment.usuario.apellido}` : `Usuario #${payment.usuario_id}`}{payment.referencia ? ` · Ref. ${payment.referencia}` : ''}</span></span>
+            <strong className="ad-disp" style={{ color: '#06709F', fontSize: 18 }}>+ {money(payment.monto)}</strong>
+          </div>)}
+      </>}
   </section>
 }
