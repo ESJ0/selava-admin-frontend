@@ -80,7 +80,7 @@ function CatalogView({ kind }: { kind: CatalogKind }) {
     <CatalogTools query={query} onQuery={setQuery} placeholder={meta.search} tabs={['Todos', 'Activos', 'Inactivos']} tab={tab} onTab={setTab} />
     {error && <ErrorBanner message={error} onRetry={() => void load()} />}
     <section className="ct-grid">
-      {loading ? <LoadingCard text={`Cargando ${meta.title.toLowerCase()}…`} />
+      {loading && !items.length ? <LoadingCard text={`Cargando ${meta.title.toLowerCase()}…`} />
         : error ? null
         : list.length === 0 ? <EmptyCard title={items.length ? meta.emptyTitle : `Aún no hay ${meta.title.toLowerCase()}`} text={items.length ? meta.emptyText : isAdmin ? 'Crea el primer registro para comenzar.' : 'Todavía no se han registrado.'} />
         : list.map((item, index) => {

@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { listPromotions, savePromotion, setPromotionActive } from '../api/promotions'
 import { listGarmentTypes } from '../api/orders'
 import { errorMessage } from '../api/client'
-import { ActiveSwitch, CardFoot, CatalogHead, CatalogModal, CatalogTools, EditButton, EmptyCard, ErrorBanner, Field, LoadingCard, NewButton } from '../components/admin/CatalogKit'
+import { CatalogHead, CatalogModal, CatalogTools, ErrorBanner, Field, LoadingCard, NewButton } from '../components/admin/CatalogKit'
 import { PathIcon } from '../components/admin/icons'
 import { useToast } from '../hooks/useToast'
 import { useAuth } from '../store/auth'
 import type { TipoPrenda } from '../types'
 import type { Promotion, PromotionPayload } from '../types/promotion'
-import { cardDelay, MODES, modeOf, onlyDecimal, parseNum } from '../utils/catalogLook'
+import { MODES, modeOf, onlyDecimal, parseNum } from '../utils/catalogLook'
 import '../styles/catalogs.css'
 
 const MAX_PRICE = 99999999.99
@@ -195,63 +195,105 @@ export function PromotionsPage() {
     }
   }
 
+  async function cleanCopies(copies: Promotion[], name: string) {
+    if (busyId != null) return
+    const active = copies.filter((copy) => copy.activo)
+    if (!active.length) return
+    setBusyId(active[0].id)
+    try {
+      for (const copy of active) await setPromotionActive(copy.id, false)
+      const ids = new Set(active.map((copy) => copy.id))
+      setItems((list) => list.map((entry) => ids.has(entry.id) ? { ...entry, activo: false } : entry))
+      toast.show(`Copias de ${name} desactivadas`)
+    } catch (cause) {
+      toast.show(errorMessage(cause), true)
+      setReload((n) => n + 1)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const typeById = useMemo(() => new Map(types.map((type) => [type.id, type])), [types])
-  const seen = useMemo(() => { const counts = new Map<string, number>(); items.forEach((item) => counts.set(dupKey(item), (counts.get(dupKey(item)) ?? 0) + 1)); return counts }, [items])
+  const ordered = useMemo(() => items.slice().sort((a, b) => a.id - b.id), [items])
+  const groups = useMemo(() => {
+    const map = new Map<string, Promotion[]>()
+    ordered.forEach((item) => { const key = dupKey(item); map.set(key, [...(map.get(key) ?? []), item]) })
+    return map
+  }, [ordered])
+  const originals = ordered.filter((item) => groups.get(dupKey(item))?.[0].id === item.id)
+  const repeated = [...groups.values()].filter((group) => group.length > 1)
+  const copiesCount = repeated.reduce((sum, group) => sum + group.length - 1, 0)
   const baseOf = (item: Promotion) => { const price = typeById.get(item.tipo_prenda_id)?.precio; return price ? price * item.medida_requerida : 0 }
-  const live = items.filter((item) => validity(item, now)[0] === 'Vigente')
+  const typeName = (item: Promotion) => typeById.get(item.tipo_prenda_id)?.nombre ?? item.tipo_prenda_nombre
+  const live = originals.filter((item) => validity(item, now)[0] === 'Vigente')
   const best = live.reduce((max, item) => { const base = baseOf(item); return base ? Math.max(max, Math.round((base - item.precio_promocional) / base * 100)) : max }, 0)
   const q = query.trim().toLowerCase()
-  const list = items
+  const list = originals
     .filter((item) => tab === 0 || (tab === 1 ? validity(item, now)[0] === 'Vigente' : !item.activo))
-    .filter((item) => !q || `${item.nombre} ${item.tipo_prenda_nombre}`.toLowerCase().includes(q))
+    .filter((item) => !q || `${item.nombre} ${typeName(item)}`.toLowerCase().includes(q))
+  const editIcon = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M14 6l4 4" /></svg>
+  const chip = (item: Promotion, on: boolean) => <span className="pm-cchip" style={{ background: on ? '#0A2433' : '#9DB3BE' }}><span className="ad-disp pm-cq">{qtyText(item.medida_requerida, item.modalidad_cobro)}</span><span className="ad-disp pm-cp">Q{plain(item.precio_promocional)}</span></span>
+  const switchFor = (item: Promotion, label: string) => {
+    const status = validity(item, now)[0]
+    return canManage
+      ? <button className="ct-sw" type="button" role="switch" aria-checked={item.activo} aria-label={`Activar o desactivar ${label}`} disabled={busyId === item.id} onClick={() => void toggle(item)}><span className="ct-trk"><span className="ct-knb" /></span><span className="pm-stt">{status}</span></button>
+      : <span className="ct-sw ro" role="switch" aria-checked={item.activo} aria-readonly="true" aria-label={`Estado de ${label}`}><span className="ct-trk"><span className="ct-knb" /></span><span className="pm-stt">{status}</span></span>
+  }
+  const range = (item: Promotion) => `${shortDate(item.fecha_inicio)} – ${shortDate(item.fecha_fin)}`
 
   return <section className="ct-page">
     <CatalogHead title="Promociones" sub="Gestiona paquetes por unidad, libra o metro sin cambiar las tarifas base.">{canManage && <NewButton label="Nueva promoción" onClick={() => setEditing(null)} />}</CatalogHead>
-    <section className="ct-stats ad-st" style={{ animationDelay: '.18s' }}>
+    <section className="ct-stats three ad-st" style={{ animationDelay: '.18s' }}>
       <div className="dark"><p className="k">Vigentes ahora</p><p className="v">{live.length}</p></div>
-      <div><p className="k">Inactivas</p><p className="v" style={{ color: '#5A7280' }}>{items.filter((item) => !item.activo).length}</p></div>
-      <div><p className="k">Mejor ahorro</p><p className="v" style={{ color: '#06709F' }}>{best > 0 ? `${best}%` : '—'}</p></div>
-      <div className="warn"><p className="k">Posibles duplicados</p><p className="v" style={{ color: '#9A6A00' }}>{[...seen.values()].filter((count) => count > 1).length}</p></div>
+      <div><p className="k">Inactivas</p><p className="v" style={{ color: '#5A7280' }}>{originals.filter((item) => !item.activo).length}</p></div>
+      <div><p className="k">Mejor ahorro vigente</p><p className="v" style={{ color: '#06709F' }}>{best > 0 ? `${best}%` : '—'}</p></div>
     </section>
-    <CatalogTools query={query} onQuery={setQuery} placeholder="Buscar por nombre o tipo de prenda…" tabs={['Todas', 'Vigentes', 'Inactivas']} tab={tab} onTab={setTab} />
+    <CatalogTools query={query} onQuery={setQuery} placeholder="Buscar por nombre o tipo de prenda…" tabs={['Todas', 'Vigentes', 'Inactivas', `Repetidas (${copiesCount})`]} tab={tab} onTab={setTab} />
     {error && <ErrorBanner message={error} onRetry={() => setReload((n) => n + 1)} />}
-    <section className="ct-grid w340">
-      {loading ? <LoadingCard text="Cargando promociones…" />
+    {tab !== 3 ? <section className="pm-plist ad-st" style={{ animationDelay: '.26s' }}>
+      {loading && !items.length ? <LoadingCard text="Cargando promociones…" />
         : error ? null
-        : list.length === 0 ? <EmptyCard title={items.length ? 'Sin promociones' : 'Aún no hay promociones.'} text={items.length ? 'Cambia el filtro o crea una nueva promoción.' : canManage ? 'Crea la primera promoción para comenzar.' : 'Todavía no se han registrado.'} />
+        : list.length === 0 ? <div className="pm-empty"><p className="ad-disp">{items.length ? 'Sin promociones' : 'Aún no hay promociones.'}</p><p>{items.length ? 'Cambia el filtro o crea una nueva.' : canManage ? 'Crea la primera promoción para comenzar.' : 'Todavía no se han registrado.'}</p></div>
         : list.map((item, index) => {
-          const status = validity(item, now)
           const base = baseOf(item)
           const start = Date.parse(item.fecha_inicio), end = Date.parse(item.fecha_fin)
-          const elapsed = Math.round(Math.max(0, Math.min(1, (now - start) / Math.max(1, end - start))) * 100)
           const left = Math.ceil((end - now) / 86400000)
-          return <article key={item.id} className={`ct-card${item.activo ? '' : ' off'}${item.id === freshId ? ' fresh' : ''}`} style={{ animationDelay: cardDelay(index, 0.04) }} aria-label={item.nombre}>
-            <div className="ct-dim ct-cpn">
-              <div className="ct-stub"><span className="ct-sq">{qtyText(item.medida_requerida, item.modalidad_cobro)}</span><span className="ct-sarr">por</span><span className="ct-sp">Q{plain(item.precio_promocional)}</span></div>
-              <div className="ct-cperf" />
-              <div style={{ minWidth: 0, padding: '18px 18px 14px 4px', flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
-                  <p className="ct-name" style={{ fontSize: 20, lineHeight: 1.1 }}>{item.nombre}</p>
-                  <span className="ct-stb" style={{ background: status[1], color: status[2] }}><i />{status[0]}</span>
-                </div>
-                <p style={{ margin: '6px 0 0', fontSize: 14, color: '#3E5866' }}>{item.tipo_prenda_nombre} · <strong style={{ letterSpacing: '.06em', fontSize: 12 }}>{item.modalidad_cobro}</strong></p>
-                {base > 0 && (base > item.precio_promocional
-                  ? <p className="ct-save">Ahorra {money(base - item.precio_promocional)} ({Math.round((base - item.precio_promocional) / base * 100)}%) <span>vs. {money(base)}</span></p>
-                  : <p className="ct-save bad">Sin ahorro <span>tarifa base {money(base)}</span></p>)}
-                {(seen.get(dupKey(item)) ?? 0) > 1 && <span className="ct-dupb" style={{ marginTop: 8 }}>Posible duplicado</span>}
-              </div>
+          const saving = base > item.precio_promocional
+          const unit = MODES[modeOf(item.modalidad_cobro)].per
+          return <div key={item.id} className={`pm-row${item.activo ? '' : ' off'}${groups.get(dupKey(item))?.some((entry) => entry.id === freshId) ? ' fresh' : ''}`} style={{ animationDelay: `${(0.28 + Math.min(index, 14) * 0.05).toFixed(2)}s` }} aria-label={item.nombre} role="group">
+            <div className="pm-prw">
+              {chip(item, item.activo)}
+              <div style={{ minWidth: 0 }}><p className="ad-disp pm-pn">{item.nombre}</p><p className="pm-pm">{typeName(item)} · {unit}</p></div>
+              {base > 0 ? <span className={`pm-sv3${saving ? '' : ' bad'}`}>{saving ? `−${Math.round((base - item.precio_promocional) / base * 100)}% · ahorra ${money(base - item.precio_promocional)}` : 'Sin ahorro'}</span> : <span />}
+              <span className="pm-pv2"><span style={{ display: 'block', fontWeight: 600, color: left <= 7 && left > 0 ? '#C8401F' : '#0A2433' }}>{now > end ? 'Finalizó' : now < start ? `Empieza ${shortDate(item.fecha_inicio)}` : `Quedan ${left} días`}</span><span>Hasta {shortDate(item.fecha_fin)}</span></span>
+              {switchFor(item, item.nombre)}
+              {canManage ? <button className="pm-ib2" type="button" aria-label={`Editar ${item.nombre}`} onClick={() => setEditing(item)}>{editIcon}</button> : <span />}
             </div>
-            <div className="ct-dim ct-vig">
-              <div><time dateTime={item.fecha_inicio}>{shortDate(item.fecha_inicio)}</time><span style={{ fontWeight: 600, color: left <= 7 && left > 0 ? '#C8401F' : '#0A2433' }}>{now < start ? 'Empieza pronto' : left > 0 ? `Quedan ${left} días` : 'Finalizó'}</span><time dateTime={item.fecha_fin}>{shortDate(item.fecha_fin)}</time></div>
-              <div className="ct-vbar"><span style={{ width: `${elapsed}%`, background: item.activo ? '#0E9BD6' : '#C9D8DF' }} /></div>
-            </div>
-            <CardFoot>
-              <ActiveSwitch active={item.activo} name={item.nombre} labels={['Activa', 'Inactiva']} busy={busyId === item.id} onToggle={canManage ? () => void toggle(item) : undefined} />
-              {canManage && <EditButton name={item.nombre} onClick={() => setEditing(item)} />}
-            </CardFoot>
-          </article>
+          </div>
         })}
     </section>
+      : <section className="pm-rvw">
+        <div className="pm-rvhead ad-st"><span className="pm-dbi"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M4 16V5a1 1 0 0 1 1-1h11" /></svg></span><div style={{ flex: 1 }}><p className="ad-disp" style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Promociones repetidas</p><p style={{ margin: '2px 0 0', fontSize: 14, color: '#5E4500' }}>Tienen el mismo nombre, prenda, cantidad y precio. Conserva la original y desactiva las copias.</p></div></div>
+        {repeated.length === 0 ? <div className="pm-plist pm-empty"><p className="ad-disp">Todo en orden</p><p>No hay promociones repetidas.</p></div>
+          : repeated.map((group, gi) => {
+            const [original, ...copies] = group
+            const copiesOn = copies.some((copy) => copy.activo)
+            return <article key={original.id} className="pm-rvc" style={{ animationDelay: `${(0.1 + gi * 0.06).toFixed(2)}s` }} aria-label={`${original.nombre} repetida`}>
+              <div className="pm-rvt">
+                {chip(original, true)}
+                <div style={{ minWidth: 0, flex: 1 }}><p className="ad-disp pm-pn">{original.nombre}</p><p className="pm-pm">{typeName(original)} · {group.length} registros iguales</p></div>
+                {canManage && copiesOn ? <button className="pm-clean2" type="button" disabled={busyId != null} onClick={() => void cleanCopies(copies, original.nombre)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>Dejar solo la original</button>
+                  : !copiesOn ? <span className="pm-okp">Copias desactivadas</span> : null}
+              </div>
+              {group.map((entry, ci) => <div key={entry.id} className="pm-cpy2">
+                <span className={`pm-tg${ci === 0 ? ' orig' : ''}`}>{ci === 0 ? 'Original' : `Copia ${ci}`}</span>
+                <span style={{ fontSize: 13, color: '#5A7280' }}>{range(entry)}</span>
+                {switchFor(entry, ci === 0 ? `${entry.nombre} original` : `${entry.nombre} copia ${ci}`)}
+                {canManage ? <button className="pm-ib2" type="button" aria-label={`Editar ${ci === 0 ? 'original' : `copia ${ci}`} de ${entry.nombre}`} onClick={() => setEditing(entry)}>{editIcon}</button> : <span />}
+              </div>)}
+            </article>
+          })}
+      </section>}
     {editing !== undefined && <PromotionForm item={editing} types={types} onClose={() => setEditing(undefined)} onSaved={(saved) => {
       setEditing(undefined); setFreshId(saved?.id ?? editing?.id ?? 0); setTab(0); toast.show(editing ? 'Promoción actualizada' : 'Promoción creada'); setReload((n) => n + 1)
     }} />}

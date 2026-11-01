@@ -16,8 +16,8 @@ const OUT_ICON = 'M12 5v14M5 12l7-7 7 7'
 
 type LogEntry = { id: number; name: string; kind: TipoMovimientoInventario; qty: number; unit: string; note: string; when: string }
 
-function Tank({ stock, min, color, dark, small, label }: { stock: number; min: number; color: string; dark?: boolean; small?: boolean; label?: string }) {
-  const cap = tankCap(Math.max(stock, 0), Math.max(min, 0))
+function Tank({ stock, min, color, dark, small, label, capacity }: { stock: number; min: number; color: string; dark?: boolean; small?: boolean; label?: string; capacity?: number }) {
+  const cap = capacity ? Math.max(capacity, stock, 1) : tankCap(Math.max(stock, 0), Math.max(min, 0))
   const level = Math.round(Math.max(stock, 0) / cap * 100)
   return <div className={`ct-tank${dark ? ' dk' : ''}${small ? ' sm' : ''}`} role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
     <div className="ct-lvl" style={{ height: `${level}%`, background: color }}>
@@ -37,6 +37,8 @@ export function InventoryPage() {
   const canMove = roleId === 1 || roleId === 3
   const [items, setItems] = useState<Insumo[]>([])
   const [lowIds, setLowIds] = useState<Set<number>>(new Set())
+  /** Capacidad de referencia de cada tanque: se mantiene fija para que el agua suba o baje al registrar movimientos. */
+  const [caps, setCaps] = useState<Map<number, number>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [tab, setTab] = useState(0)
@@ -57,7 +59,7 @@ export function InventoryPage() {
     setError('')
     try {
       const [response, low] = await Promise.all([listInputs(controller.signal), listLowStockInputs(controller.signal)])
-      if (!controller.signal.aborted) { setItems(response ?? []); setLowIds(new Set((low ?? []).map((item) => item.id))) }
+      if (!controller.signal.aborted) { setItems(response ?? []); setCaps((current) => { const next = new Map(current); (response ?? []).forEach((item) => next.set(item.id, Math.max(current.get(item.id) ?? 0, tankCap(Math.max(item.stock_actual, 0), Math.max(item.stock_minimo, 0))))); return next }); setLowIds(new Set((low ?? []).map((item) => item.id))) }
     } catch (cause) {
       if (!controller.signal.aborted) { setItems([]); setLowIds(new Set()); setError(errorMessage(cause)) }
     } finally {
@@ -105,14 +107,14 @@ export function InventoryPage() {
 
     <div className="ct-inslay">
       <section className="ct-grid w300" style={{ marginTop: 18 }}>
-        {loading ? <LoadingCard text="Cargando insumos…" />
+        {loading && !items.length ? <LoadingCard text="Cargando insumos…" />
           : error ? null
           : list.length === 0 ? <EmptyCard title={items.length ? 'Sin insumos' : 'Aún no hay insumos'} text={items.length ? 'Cambia el filtro o registra un insumo nuevo.' : 'Crea el primer registro para comenzar.'} />
           : list.map((item, index) => {
             const state = stockState(item.stock_actual, item.stock_minimo, item.activo, lowIds.has(item.id))
             return <article key={item.id} className={`ct-card${item.activo ? '' : ' off'}${item.id === freshId ? ' fresh' : ''}`} style={{ animationDelay: cardDelay(index) }} aria-label={item.nombre}>
               <div className="ct-dim" style={{ padding: 20, display: 'flex', gap: 18 }}>
-                <Tank stock={item.stock_actual} min={item.stock_minimo} color={state[3]} label={`Stock ${fmtN(item.stock_actual)} de mínimo ${fmtN(item.stock_minimo)}`} />
+                <Tank stock={item.stock_actual} min={item.stock_minimo} color={state[3]} capacity={caps.get(item.id)} label={`Stock ${fmtN(item.stock_actual)} de mínimo ${fmtN(item.stock_minimo)}`} />
                 <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}><p className="ct-name" style={{ fontSize: 22 }}>{item.nombre}</p><StateBadge state={state} /></div>
                   <p className="ct-desc" style={{ marginTop: 2 }}>{item.descripcion || 'Sin descripción'}</p>

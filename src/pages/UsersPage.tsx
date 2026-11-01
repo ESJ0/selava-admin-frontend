@@ -87,7 +87,7 @@ export function UsersPage() {
     <CatalogTools query={query} onQuery={setQuery} placeholder="Buscar por nombre, correo o teléfono…" tabs={['Todos', 'Activos', 'Inactivos']} tab={tab} onTab={setTab} />
     {error && <ErrorBanner message={error} onRetry={() => void load()} />}
     <section className="ct-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))' }}>
-      {loading ? <LoadingCard text="Cargando usuarios…" />
+      {loading && !users.length ? <LoadingCard text="Cargando usuarios…" />
         : error ? null
         : list.length === 0 ? <EmptyCard title={users.length ? 'Sin usuarios' : 'Aún no hay usuarios'} text={users.length ? 'Prueba otro filtro o búsqueda.' : 'Crea la primera cuenta para comenzar.'} />
         : list.map((user, index) => {
