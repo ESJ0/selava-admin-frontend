@@ -79,8 +79,7 @@ export function Layout({ children }: { children: ReactNode }) {
   return <div className="ad-shell">
     <aside id="main-sidebar" className={`ad-side${open ? ' open' : ''}`} aria-label="Menú de administración">
       <Link className="ad-logo" to={roleId === 3 ? '/pedidos' : '/inicio'} onClick={close} aria-label="SeLava, ir al inicio">
-        <span className="ad-logo-mark" aria-hidden="true" />
-        <span className="ad-disp ad-logo-name">Se<span>Lava</span></span>
+        <span className="ad-logo-img"><img src="/selava-logo.png" alt="" width={480} height={368} decoding="async" /></span>
         <span className="ad-logo-tag">{roleId === 3 ? 'OPERARIO' : 'ADMIN'}</span>
       </Link>
       <nav aria-label="Menú principal">

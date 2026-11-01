@@ -18,6 +18,9 @@
 .ad-logo-mark::after { content: ""; position: absolute; top: 5px; right: 6px; width: 5px; height: 5px; border-radius: 50%; background: #FFC93C; }
 .ad-logo-name { font-weight: 800; font-size: 24px; letter-spacing: -0.02em; }
 .ad-logo-name span { color: #5BC3EC; }
+.ad-logo-img { flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 6px 10px; border-radius: 16px; background: #fff; box-shadow: 0 10px 22px -16px rgba(0,0,0,.6); transition: transform .4s cubic-bezier(.2,1.4,.4,1); }
+.ad-logo-img img { display: block; width: auto; height: 58px; }
+.ad-shell a.ad-logo:hover .ad-logo-img { transform: rotate(-3deg) scale(1.03); }
 .ad-logo-tag { margin-left: auto; padding: 3px 8px; border-radius: 8px; background: #123A50; font-size: 11px; font-weight: 600; letter-spacing: .1em; color: #5BC3EC; }
 .ad-side nav { display: flex; flex-direction: column; gap: 4px; }
 .ad-side section { display: flex; flex-direction: column; gap: 4px; }
@@ -63,7 +66,7 @@
 .ad-menu-btn { display: none; }
 .ad-backdrop { display: none; }
 
-.ad-main { padding: 32px 32px 56px; max-width: 1360px; }
+.ad-main { padding: 32px 32px 56px; width: 100%; max-width: none; box-sizing: border-box; }
 .ad-main.legacy { max-width: none; }
 
 /* cabeceras de página */
