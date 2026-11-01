@@ -1,21 +1,13 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SupplyConsumptionReportPage } from './SupplyConsumptionReportPage'
 
-const mocks = vi.hoisted(() => ({ getReport: vi.fn(), exportPdf: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getReport: vi.fn(), exportPdf: vi.fn(), listInputs: vi.fn() }))
+vi.mock('../api/inventory', () => ({ listInputs: mocks.listInputs }))
 
 vi.mock('../api/reports', () => ({ getSupplyConsumptionReport: mocks.getReport }))
 vi.mock('../utils/reportPdf', () => ({ exportSupplyConsumptionReportPdf: mocks.exportPdf }))
-vi.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  BarChart: ({ children }: { children: React.ReactNode }) => <svg>{children}</svg>,
-  Bar: () => null,
-  CartesianGrid: () => null,
-  Tooltip: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-}))
 
 const report = {
   fecha_inicio: '2026-09-01',
@@ -32,63 +24,52 @@ describe('SupplyConsumptionReportPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getReport.mockResolvedValue(report)
+    mocks.listInputs.mockResolvedValue([{ id: 1, nombre: 'Detergente', unidad_medida: 'L', stock_actual: 20, stock_minimo: 5, activo: true, created_at: '', updated_at: '' }])
   })
 
-  it('muestra el resumen, la gráfica y el detalle del consumo', async () => {
-    render(<SupplyConsumptionReportPage/>)
-
-    const summary = await screen.findByLabelText('Resumen de consumo de insumos')
-    expect(within(summary).getByText('Insumos consumidos').nextElementSibling).toHaveTextContent('2')
-    expect(within(summary).getByText('Movimientos de salida').nextElementSibling).toHaveTextContent('3')
-    expect(within(summary).getByText('12.5 L')).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: 'Gráfica de consumo de insumos por período' })).toBeInTheDocument()
-    expect(screen.getAllByText('Detergente')).toHaveLength(2)
-    expect(screen.getByText('8 unidad')).toBeInTheDocument()
+  it('muestra el resumen, las barras, el detalle y la proyección', async () => {
+    render(<SupplyConsumptionReportPage />)
+    const chart = await screen.findByRole('img', { name: /Gráfica de consumo por insumo/ })
+    expect(within(chart).getByText('12.5 L')).toBeInTheDocument()
+    expect(within(chart).getByText('8 unidad')).toBeInTheDocument()
+    expect(screen.getByText('Mayor consumo').previousElementSibling).toHaveTextContent('12.5 L')
+    expect(screen.getByText('L · 2 movimientos')).toBeInTheDocument()
+    expect(await screen.findByText('Proyección · Detergente')).toBeInTheDocument()
+    expect(screen.getByText('0.42 L por día')).toBeInTheDocument()
+    expect(screen.getByText('~36 días')).toBeInTheDocument()
   })
 
   it('consulta nuevamente al aplicar un período válido', async () => {
-    const user = userEvent.setup()
-    render(<SupplyConsumptionReportPage/>)
-    await screen.findByLabelText('Resumen de consumo de insumos')
-
-    await user.clear(screen.getByLabelText('Fecha de inicio'))
-    await user.type(screen.getByLabelText('Fecha de inicio'), '2026-08-01')
-    await user.clear(screen.getByLabelText('Fecha final'))
-    await user.type(screen.getByLabelText('Fecha final'), '2026-08-31')
-    await user.click(screen.getByRole('button', { name: 'Aplicar filtro' }))
-
+    render(<SupplyConsumptionReportPage />)
+    await screen.findByRole('img', { name: /Gráfica de consumo por insumo/ })
+    fireEvent.change(screen.getByLabelText('Fecha de inicio'), { target: { value: '2026-08-01' } })
+    fireEvent.change(screen.getByLabelText('Fecha final'), { target: { value: '2026-08-31' } })
     await waitFor(() => expect(mocks.getReport).toHaveBeenLastCalledWith('2026-08-01', '2026-08-31', expect.any(AbortSignal)))
   })
 
   it('rechaza un período invertido sin consultar nuevamente', async () => {
-    const user = userEvent.setup()
-    render(<SupplyConsumptionReportPage/>)
-    await screen.findByLabelText('Resumen de consumo de insumos')
+    render(<SupplyConsumptionReportPage />)
+    await screen.findByRole('img', { name: /Gráfica de consumo por insumo/ })
     const calls = mocks.getReport.mock.calls.length
-
-    await user.clear(screen.getByLabelText('Fecha de inicio'))
-    await user.type(screen.getByLabelText('Fecha de inicio'), '2026-09-30')
-    await user.clear(screen.getByLabelText('Fecha final'))
-    await user.type(screen.getByLabelText('Fecha final'), '2026-09-01')
-    await user.click(screen.getByRole('button', { name: 'Aplicar filtro' }))
-
-    expect(screen.getByRole('alert')).toHaveTextContent('no puede ser posterior')
+    fireEvent.change(screen.getByLabelText('Fecha de inicio'), { target: { value: '2026-09-30' } })
+    fireEvent.change(screen.getByLabelText('Fecha final'), { target: { value: '2026-09-01' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('debe ser anterior')
+    await new Promise((resolve) => setTimeout(resolve, 600))
     expect(mocks.getReport).toHaveBeenCalledTimes(calls)
   })
 
   it('muestra un estado vacío si no hubo salidas de inventario', async () => {
-    mocks.getReport.mockResolvedValueOnce({ ...report, consumo_por_insumo: [] })
-    render(<SupplyConsumptionReportPage/>)
-
-    expect(await screen.findByText('No hay consumo en este período')).toBeInTheDocument()
-    expect(screen.getByText('Sin salidas registradas')).toBeInTheDocument()
+    mocks.getReport.mockResolvedValue({ ...report, cantidad_movimientos: 0, total_consumido: 0, consumo_por_insumo: [] })
+    render(<SupplyConsumptionReportPage />)
+    expect(await screen.findByText('No hay salidas de inventario en este período.')).toBeInTheDocument()
+    expect(screen.queryByText(/Proyección/)).not.toBeInTheDocument()
   })
 
   it('descarga el reporte consultado en PDF', async () => {
     const user = userEvent.setup()
-    render(<SupplyConsumptionReportPage/>)
-    await screen.findByLabelText('Resumen de consumo de insumos')
+    render(<SupplyConsumptionReportPage />)
+    await screen.findByRole('img', { name: /Gráfica de consumo por insumo/ })
     await user.click(screen.getByRole('button', { name: 'Descargar PDF' }))
-    expect(mocks.exportPdf).toHaveBeenCalledWith(report)
+    await waitFor(() => expect(mocks.exportPdf).toHaveBeenCalledWith(report))
   })
 })

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrdersByStatusReportPage } from './OrdersByStatusReportPage'
@@ -7,13 +7,6 @@ const mocks = vi.hoisted(() => ({ getReport: vi.fn(), exportPdf: vi.fn() }))
 
 vi.mock('../api/reports', () => ({ getOrdersByStatusReport: mocks.getReport }))
 vi.mock('../utils/reportPdf', () => ({ exportOrdersByStatusReportPdf: mocks.exportPdf }))
-vi.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  PieChart: ({ children }: { children: React.ReactNode }) => <svg>{children}</svg>,
-  Pie: ({ children }: { children: React.ReactNode }) => <g>{children}</g>,
-  Cell: () => null,
-  Tooltip: () => null,
-}))
 
 const report = {
   fecha_inicio: '2026-09-01',
@@ -33,54 +26,47 @@ describe('OrdersByStatusReportPage', () => {
     mocks.getReport.mockResolvedValue(report)
   })
 
-  it('muestra el resumen, la gráfica y todos los estados', async () => {
-    render(<OrdersByStatusReportPage/>)
-
-    const summary = await screen.findByLabelText('Resumen de pedidos por estado')
-    expect(within(summary).getByText('8')).toBeInTheDocument()
-    expect(within(summary).getByText('3')).toBeInTheDocument()
-    expect(within(summary).getByText('Recibido')).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: 'Gráfica de pedidos por estado' })).toBeInTheDocument()
-    expect(screen.getByText('Cancelado')).toBeInTheDocument()
-    expect(screen.getByText('0% del total')).toBeInTheDocument()
+  it('muestra el resumen, la dona y todos los estados en orden', async () => {
+    const user = userEvent.setup()
+    render(<OrdersByStatusReportPage />)
+    const donut = await screen.findByRole('img', { name: /Gráfica de pedidos por estado/ })
+    expect(donut.querySelectorAll('.rp-arc')).toHaveLength(3)
+    expect(screen.getByText('De 4 estados registrados')).toBeInTheDocument()
+    expect(screen.getByText('5 pedidos · 63% del total')).toBeInTheDocument()
+    const rows = within(screen.getByRole('list')).getAllByRole('listitem')
+    expect(rows.map((row) => row.textContent)).toEqual(['1Recibido5 62.5%', '2Rackeado2 25%', '3Entregado1 12.5%', '4Cancelado0 0%'])
+    expect(rows[3]).toHaveClass('zero')
+    expect(screen.getByText(/de los pedidos sigue en/)).toHaveTextContent('El 63% de los pedidos sigue en Recibido.')
+    await user.hover(screen.getByRole('button', { name: /Rackeado/ }))
+    expect(screen.getByText('Rackeado · 25%')).toBeInTheDocument()
   })
 
   it('aplica un rango de fechas y permite descargar el PDF', async () => {
     const user = userEvent.setup()
-    render(<OrdersByStatusReportPage/>)
-    await screen.findByLabelText('Resumen de pedidos por estado')
-
-    await user.clear(screen.getByLabelText('Fecha de inicio'))
-    await user.type(screen.getByLabelText('Fecha de inicio'), '2026-08-01')
-    await user.clear(screen.getByLabelText('Fecha final'))
-    await user.type(screen.getByLabelText('Fecha final'), '2026-08-31')
-    await user.click(screen.getByRole('button', { name: 'Aplicar filtro' }))
-
-    await waitFor(() => expect(mocks.getReport).toHaveBeenCalledTimes(2))
-    expect(mocks.getReport).toHaveBeenLastCalledWith('2026-08-01', '2026-08-31', expect.any(AbortSignal))
+    render(<OrdersByStatusReportPage />)
+    await screen.findByRole('img', { name: /Gráfica de pedidos por estado/ })
+    fireEvent.change(screen.getByLabelText('Fecha de inicio'), { target: { value: '2026-08-01' } })
+    fireEvent.change(screen.getByLabelText('Fecha final'), { target: { value: '2026-08-31' } })
+    await waitFor(() => expect(mocks.getReport).toHaveBeenLastCalledWith('2026-08-01', '2026-08-31', expect.any(AbortSignal)))
     await user.click(screen.getByRole('button', { name: 'Descargar PDF' }))
-    expect(mocks.exportPdf).toHaveBeenCalledWith(report)
+    await waitFor(() => expect(mocks.exportPdf).toHaveBeenCalledWith(report))
   })
 
   it('rechaza un período invertido antes de consultar la API', async () => {
-    const user = userEvent.setup()
-    render(<OrdersByStatusReportPage/>)
-    await screen.findByLabelText('Resumen de pedidos por estado')
+    render(<OrdersByStatusReportPage />)
+    await screen.findByRole('img', { name: /Gráfica de pedidos por estado/ })
     const calls = mocks.getReport.mock.calls.length
-    await user.clear(screen.getByLabelText('Fecha de inicio'))
-    await user.type(screen.getByLabelText('Fecha de inicio'), '2026-09-30')
-    await user.clear(screen.getByLabelText('Fecha final'))
-    await user.type(screen.getByLabelText('Fecha final'), '2026-09-01')
-    await user.click(screen.getByRole('button', { name: 'Aplicar filtro' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('no puede ser posterior')
+    fireEvent.change(screen.getByLabelText('Fecha de inicio'), { target: { value: '2026-09-30' } })
+    fireEvent.change(screen.getByLabelText('Fecha final'), { target: { value: '2026-09-01' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('debe ser anterior')
+    await new Promise((resolve) => setTimeout(resolve, 600))
     expect(mocks.getReport).toHaveBeenCalledTimes(calls)
   })
 
   it('muestra el estado vacío cuando no hay pedidos activos', async () => {
-    mocks.getReport.mockResolvedValueOnce({ ...report, total_pedidos: 0, pedidos_por_estado: report.pedidos_por_estado.map((item) => ({ ...item, cantidad_pedidos: 0 })) })
-    render(<OrdersByStatusReportPage/>)
-
-    expect(await screen.findByText('No hay pedidos activos')).toBeInTheDocument()
-    expect(screen.getByText('Sin pedidos')).toBeInTheDocument()
+    mocks.getReport.mockResolvedValue({ ...report, total_pedidos: 0, pedidos_por_estado: report.pedidos_por_estado.map((item) => ({ ...item, cantidad_pedidos: 0 })) })
+    render(<OrdersByStatusReportPage />)
+    expect(await screen.findByText('No hay pedidos activos en este período.')).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem')).toHaveLength(4)
   })
 })

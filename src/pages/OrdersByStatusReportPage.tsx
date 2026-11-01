@@ -1,144 +1,78 @@
-import { CalendarDays, ChartPie, CircleDot, ClipboardList, Download, Layers3, RefreshCw, Trophy } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
-import { errorMessage } from '../api/client'
+import { useState } from 'react'
 import { getOrdersByStatusReport } from '../api/reports'
-import type { ReportePedidosPorEstado } from '../types'
+import { Insight, Kpi, PanelHead, PeriodBar, ReportError, ReportHead } from '../components/admin/ReportKit'
+import { useCountUp, useReport } from '../hooks/useReport'
 import { exportOrdersByStatusReportPdf } from '../utils/reportPdf'
+import '../styles/catalogs.css'
+import '../styles/reports.css'
 
-const STATUS_COLORS = ['#05aff2', '#7357d9', '#00b87b', '#f4a340', '#e85b6b', '#58708f']
-
-interface Periodo { inicio: string; fin: string }
-
-function inputDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+const FALLBACK = ['#F5A33A', '#7B5CE0', '#3E5866', '#FFC93C', '#0E9BD6', '#1F8A5B', '#C8401F', '#C9B8FF']
+function stateColor(name: string, index: number) {
+  const n = name.toLowerCase()
+  if (n.includes('recib')) return '#F5A33A'
+  if (n.includes('seco')) return '#3E5866'
+  if (n.includes('lavad')) return '#7B5CE0'
+  if (n.includes('planch')) return '#FFC93C'
+  if (n.includes('rack')) return '#0E9BD6'
+  if (n.includes('final') || n.includes('entreg')) return '#1F8A5B'
+  if (n.includes('cancel')) return '#C8401F'
+  return FALLBACK[index % FALLBACK.length]
 }
-
-function initialPeriod(): Periodo {
-  const today = new Date()
-  return { inicio: inputDate(new Date(today.getFullYear(), today.getMonth(), 1)), fin: inputDate(today) }
-}
-
-function dateFromApi(value: string) { return new Date(`${value}T12:00:00`) }
-const longDate = new Intl.DateTimeFormat('es-GT', { day: 'numeric', month: 'long', year: 'numeric' })
-
-function statusColor(index: number) {
-  return STATUS_COLORS[index % STATUS_COLORS.length]
-}
-
-function stateColor(order: number) {
-  return statusColor(Math.max(0, order - 1))
-}
+const svgIcon = (children: React.ReactNode) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
 
 export function OrdersByStatusReportPage() {
-  const [filters, setFilters] = useState<Periodo>(initialPeriod)
-  const [appliedPeriod, setAppliedPeriod] = useState<Periodo>(initialPeriod)
-  const [report, setReport] = useState<ReportePedidosPorEstado | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [validationError, setValidationError] = useState('')
-  const request = useRef<AbortController | null>(null)
+  const { period, report, loading, error, badRange, pick, setFrom, setTo, retry } = useReport(getOrdersByStatusReport)
+  const e = useCountUp(report)
+  const [hover, setHover] = useState('')
+  const states = (report?.pedidos_por_estado ?? []).slice().sort((a, b) => (a.estado.orden ?? 0) - (b.estado.orden ?? 0)).map((item, i) => ({ id: item.estado.id, name: item.estado.nombre, n: item.cantidad_pedidos, color: stateColor(item.estado.nombre, i) }))
+  const total = report?.total_pedidos ?? states.reduce((sum, item) => sum + item.n, 0)
+  const withN = states.filter((item) => item.n > 0)
+  const top = withN.slice().sort((a, b) => b.n - a.n)[0]
+  const pct = (n: number) => total ? Math.round(n / total * 1000) / 10 : 0
+  const C = 2 * Math.PI * 96, gap = withN.length > 1 ? 4 : 0
+  const lengths = withN.map((item) => item.n / Math.max(1, total) * C)
+  const arcs = withN.map((item, i) => ({ ...item, dash: `${Math.max(0, lengths[i] - gap).toFixed(1)} ${C.toFixed(1)}`, off: (-lengths.slice(0, i).reduce((sum, len) => sum + len, 0)).toFixed(1), d: (0.3 + i * 0.15).toFixed(2) }))
+  const hv = withN.find((item) => item.name === hover)
+  const leave = () => setHover('')
 
-  const load = useCallback(async (period: Periodo) => {
-    request.current?.abort()
-    const controller = new AbortController()
-    request.current = controller
-    setLoading(true)
-    setError('')
-    setReport(null)
-    setAppliedPeriod(period)
-    try {
-      const response = await getOrdersByStatusReport(period.inicio, period.fin, controller.signal)
-      if (!controller.signal.aborted) setReport(response)
-    } catch (cause) {
-      if (!controller.signal.aborted) setError(errorMessage(cause))
-    } finally {
-      if (!controller.signal.aborted) setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    const period = initialPeriod()
-    const timer = window.setTimeout(() => { void load(period) }, 0)
-    return () => { window.clearTimeout(timer); request.current?.abort() }
-  }, [load])
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!filters.inicio || !filters.fin) {
-      setValidationError('Selecciona ambas fechas para generar el reporte.')
-      return
-    }
-    if (filters.inicio > filters.fin) {
-      setValidationError('La fecha de inicio no puede ser posterior a la fecha final.')
-      return
-    }
-    setValidationError('')
-    void load(filters)
-  }
-
-  const activeStates = useMemo(() => report?.pedidos_por_estado.filter((item) => item.cantidad_pedidos > 0) ?? [], [report])
-  const leadingState = useMemo(() => activeStates.reduce<(typeof activeStates)[number] | null>((leading, item) => !leading || item.cantidad_pedidos > leading.cantidad_pedidos ? item : leading, null), [activeStates])
-
-  return <section className="report-page order-status-report-page">
-    <header className="page-heading report-heading">
-      <div><h1>Pedidos por estado</h1><p>Visualiza la distribución actual de los pedidos activos.</p></div>
-      {report && <button className="secondary report-download" type="button" onClick={() => exportOrdersByStatusReportPdf(report)}><Download size={18}/>Descargar PDF</button>}
-    </header>
-
-    <form className="report-filters" aria-label="Filtros del reporte de pedidos por estado" onSubmit={submit}>
-      <div className="report-filter-title"><span><CalendarDays size={21}/></span><div><b>Período del reporte</b><small>Selecciona un rango de fechas</small></div></div>
-      <label>Desde<input aria-label="Fecha de inicio" type="date" required value={filters.inicio} onChange={(event) => setFilters((current) => ({ ...current, inicio: event.target.value }))}/></label>
-      <label>Hasta<input aria-label="Fecha final" type="date" required value={filters.fin} onChange={(event) => setFilters((current) => ({ ...current, fin: event.target.value }))}/></label>
-      <button className="primary" type="submit" disabled={loading}>{loading ? 'Consultando…' : 'Aplicar filtro'}</button>
-    </form>
-
-    {validationError && <div className="alert error" role="alert">{validationError}</div>}
-    {error && <div className="alert error" role="alert"><span>{error}</span><button type="button" onClick={() => void load(appliedPeriod)}><RefreshCw size={16}/>Reintentar</button></div>}
-
-    {loading ? <div className="report-loading" role="status"><span className="spinner"/>Generando reporte…</div> : report && <>
-      <div className="report-period-label">Resultados del {longDate.format(dateFromApi(report.fecha_inicio))} al {longDate.format(dateFromApi(report.fecha_fin))}</div>
-      <section className="report-metrics order-status-metrics" aria-label="Resumen de pedidos por estado">
-        <article><span className="metric-icon sales"><ClipboardList size={23}/></span><div><small>Pedidos activos</small><strong>{report.total_pedidos}</strong><span>Total incluido en el reporte</span></div></article>
-        <article><span className="metric-icon orders"><Layers3 size={23}/></span><div><small>Estados con pedidos</small><strong>{activeStates.length}</strong><span>De {report.pedidos_por_estado.length} estados registrados</span></div></article>
-        <article><span className="metric-icon average"><Trophy size={23}/></span><div><small>Estado predominante</small><strong className="metric-state-name">{leadingState?.estado.nombre ?? 'Sin pedidos'}</strong><span>{leadingState ? `${leadingState.cantidad_pedidos} ${leadingState.cantidad_pedidos === 1 ? 'pedido' : 'pedidos'}` : 'No hay actividad actual'}</span></div></article>
-      </section>
-
-      <section className="order-status-grid">
-        <article className="report-card status-chart-card">
-          <header><div><h2>Distribución de pedidos</h2><p>Proporción por estado actual</p></div><span className="report-card-icon"><ChartPie size={20}/></span></header>
-          {report.total_pedidos === 0 ? <div className="report-empty"><ClipboardList size={42}/><b>No hay pedidos activos</b><span>La distribución aparecerá cuando existan pedidos.</span></div> : <div className="status-chart-content">
-            <div className="status-donut" role="img" aria-label="Gráfica de pedidos por estado">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={activeStates} dataKey="cantidad_pedidos" nameKey="estado.nombre" innerRadius="58%" outerRadius="82%" paddingAngle={3} stroke="none">
-                    {activeStates.map((item) => <Cell key={item.estado.id} fill={stateColor(item.estado.orden)}/>)}
-                  </Pie>
-                  <Tooltip formatter={(value, name) => [`${Number(value)} ${Number(value) === 1 ? 'pedido' : 'pedidos'}`, name]} contentStyle={{ border: '1px solid #e2e9f2', borderRadius: 12, boxShadow: '0 8px 28px #082c4520' }}/>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="donut-total"><strong>{report.total_pedidos}</strong><span>pedidos</span></div>
+  return <section className="ct-page">
+    <ReportHead title="Pedidos por estado" sub="Visualiza la distribución actual de los pedidos activos." onPdf={report ? () => exportOrdersByStatusReportPdf(report) : undefined} />
+    <PeriodBar period={period} badRange={badRange} onPick={pick} onFrom={setFrom} onTo={setTo} />
+    {error && <ReportError message={error} onRetry={retry} />}
+    <section className="rp-kp three">
+      <Kpi dark delay={.22} iconBg="#FFC93C" iconFg="#0A2433" icon={svgIcon(<><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3" /></>)} value={Math.round(total * e)} valueStyle={{ color: '#FFC93C' }} label="Pedidos activos" sub="Total incluido en el reporte" />
+      <Kpi delay={.26} iconBg="#EFE9FF" iconFg="#5B3FCF" icon={svgIcon(<path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5" />)} value={Math.round(withN.length * e)} label="Estados con pedidos" sub={`De ${states.length} estados registrados`} />
+      <Kpi delay={.3} iconBg="#FFF4D6" iconFg="#9A6A00" icon={svgIcon(<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" />)} value={top ? top.name : '—'} valueStyle={{ fontSize: 32 }} label="Estado predominante" sub={`${top?.n ?? 0} pedidos · ${top ? Math.round(pct(top.n)) : 0}% del total`} />
+    </section>
+    <section className="rp-rg" style={{ gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)' }}>
+      <div className="rp-panel" style={{ animationDelay: '.34s' }}>
+        <PanelHead title="Distribución de pedidos" sub="Pasa el mouse por un estado para resaltarlo" />
+        {!report ? <div className="rp-loading" role="status">{loading ? 'Cargando reporte…' : 'Sin datos.'}</div>
+          : total === 0 ? <div className="rp-emptyr">No hay pedidos activos en este período.</div>
+          : <>
+            <div className="rp-donutwrap">
+              <svg viewBox="0 0 260 260" className="rp-donut" role="img" aria-label={`Gráfica de pedidos por estado: ${withN.map((item) => `${item.name}: ${item.n}`).join(', ')}`}>
+                <circle cx="130" cy="130" r="96" fill="none" stroke="#EEF3F6" strokeWidth="34" />
+                {arcs.map((arc) => <circle key={arc.id} className={`rp-arc${hover && hover !== arc.name ? ' dimmed' : ''}`} cx="130" cy="130" r="96" fill="none" stroke={arc.color} strokeWidth={hover === arc.name ? 44 : 34} strokeDasharray={arc.dash} strokeDashoffset={arc.off} transform="rotate(-90 130 130)" style={{ animationDelay: `${arc.d}s` }} onMouseEnter={() => setHover(arc.name)} onMouseLeave={leave} />)}
+              </svg>
+              <div className="rp-dcenter"><span className="ad-disp" style={{ fontSize: 54, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, color: hv ? hv.color : '#0A2433' }}>{hv ? hv.n : Math.round(total * e)}</span><span style={{ fontSize: 14, color: '#5A7280' }}>{hv ? `${hv.name} · ${pct(hv.n)}%` : 'pedidos activos'}</span></div>
             </div>
-            <div className="status-chart-legend">{activeStates.map((item) => <div key={item.estado.id}><i style={{ backgroundColor: stateColor(item.estado.orden) }}/><span>{item.estado.nombre}</span><strong>{item.cantidad_pedidos}</strong></div>)}</div>
-          </div>}
-        </article>
-
-        <article className="report-card status-detail-card">
-          <header><div><h2>Detalle por estado</h2><p>Incluye estados sin pedidos</p></div><span className="report-card-icon"><CircleDot size={20}/></span></header>
-          {report.pedidos_por_estado.length === 0 ? <div className="report-empty compact"><Layers3 size={38}/><b>No hay estados configurados</b></div> : <div className="status-detail-list">{report.pedidos_por_estado.map((item) => {
-            const percentage = report.total_pedidos > 0 ? (item.cantidad_pedidos / report.total_pedidos) * 100 : 0
-            return <div className="status-detail-row" key={item.estado.id}>
-              <span className="status-color" style={{ backgroundColor: stateColor(item.estado.orden) }}/>
-              <div><b>{item.estado.nombre}</b><span>{percentage.toLocaleString('es-GT', { maximumFractionDigits: 1 })}% del total</span></div>
-              <strong>{item.cantidad_pedidos}</strong>
-              <div className="status-progress"><i style={{ width: `${percentage}%`, backgroundColor: stateColor(item.estado.orden) }}/></div>
+            <div className="rp-legend">{withN.map((item) => <button key={item.id} type="button" className={`rp-lgb${hover === item.name ? ' on' : ''}`} onMouseEnter={() => setHover(item.name)} onMouseLeave={leave} onFocus={() => setHover(item.name)} onBlur={leave}><i style={{ background: item.color }} />{item.name}<strong>{item.n}</strong></button>)}</div>
+          </>}
+      </div>
+      <div className="rp-panel" style={{ animationDelay: '.38s' }}>
+        <PanelHead title="Detalle por estado" sub="Incluye estados sin pedidos, en orden del proceso" />
+        {states.length ? <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {states.map((item, i) => <li key={item.id} className={`rp-srow${item.n ? '' : ' zero'}${hover === item.name ? ' on' : ''}`} style={{ animationDelay: `${(0.4 + i * 0.05).toFixed(2)}s` }} onMouseEnter={() => { if (item.n) setHover(item.name) }} onMouseLeave={leave}>
+            <span className="rp-stn2" style={{ background: item.n ? item.color : '#EEF3F6', color: item.n ? '#fff' : '#8AA3B0' }}>{i + 1}</span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}><span style={{ fontWeight: 600 }}>{item.name}</span><span><span className="ad-disp" style={{ fontSize: 22, fontWeight: 800 }}>{item.n}</span> <span style={{ fontSize: 12, color: '#5A7280' }}>{pct(item.n)}%</span></span></div>
+              <div className="rp-mbar" style={{ marginTop: 8 }}><span style={{ width: `${pct(item.n)}%`, background: item.color }} /></div>
             </div>
-          })}</div>}
-        </article>
-      </section>
-    </>}
+          </li>)}
+        </ol> : <p style={{ margin: 0, color: '#5A7280' }}>Sin datos.</p>}
+        {top && pct(top.n) >= 60 && <Insight icon="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v6M12 16.5v.5">El <b>{Math.round(pct(top.n))}%</b> de los pedidos sigue en <b>{top.name}</b>. Puede ser un buen momento para avanzarlos a la siguiente etapa.</Insight>}
+      </div>
+    </section>
   </section>
 }

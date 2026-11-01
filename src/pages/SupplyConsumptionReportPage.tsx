@@ -1,148 +1,85 @@
-import { Activity, CalendarDays, ChartBarBig, Download, PackageSearch, RefreshCw, Scale, TrendingDown } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { errorMessage } from '../api/client'
+import { useEffect, useState } from 'react'
+import { listInputs } from '../api/inventory'
 import { getSupplyConsumptionReport } from '../api/reports'
-import type { ReporteConsumoInsumoDetalle, ReporteConsumoInsumos } from '../types'
+import { Kpi, PanelHead, PeriodBar, ReportError, ReportHead } from '../components/admin/ReportKit'
+import { qty, useCountUp, useReport } from '../hooks/useReport'
+import type { Insumo } from '../types'
 import { exportSupplyConsumptionReportPdf } from '../utils/reportPdf'
+import '../styles/catalogs.css'
+import '../styles/reports.css'
 
-interface Periodo {
-  inicio: string
-  fin: string
-}
-
-function inputDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function initialPeriod(): Periodo {
-  const today = new Date()
-  return { inicio: inputDate(new Date(today.getFullYear(), today.getMonth(), 1)), fin: inputDate(today) }
-}
-
-function dateFromApi(value: string) {
-  return new Date(`${value}T12:00:00`)
-}
-
-const longDate = new Intl.DateTimeFormat('es-GT', { day: 'numeric', month: 'long', year: 'numeric' })
-const quantity = new Intl.NumberFormat('es-GT', { maximumFractionDigits: 2 })
-
-function formatLongDate(value: string) {
-  return longDate.format(dateFromApi(value))
-}
-
-function formatQuantity(value: number, unit: string) {
-  return `${quantity.format(value)} ${unit}`
-}
+const svgIcon = (children: React.ReactNode, width = 1.9) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
 
 export function SupplyConsumptionReportPage() {
-  const [filters, setFilters] = useState<Periodo>(initialPeriod)
-  const [appliedPeriod, setAppliedPeriod] = useState<Periodo>(initialPeriod)
-  const [report, setReport] = useState<ReporteConsumoInsumos | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [validationError, setValidationError] = useState('')
-  const request = useRef<AbortController | null>(null)
-
-  const load = useCallback(async (period: Periodo) => {
-    request.current?.abort()
+  const { period, report, loading, error, badRange, pick, setFrom, setTo, retry } = useReport(getSupplyConsumptionReport)
+  const e = useCountUp(report)
+  const [stock, setStock] = useState<Insumo[]>([])
+  useEffect(() => {
     const controller = new AbortController()
-    request.current = controller
-    setAppliedPeriod(period)
-    setLoading(true)
-    setError('')
-    setReport(null)
-    try {
-      const response = await getSupplyConsumptionReport(period.inicio, period.fin, controller.signal)
-      if (!controller.signal.aborted) setReport(response)
-    } catch (cause) {
-      if (!controller.signal.aborted) setError(errorMessage(cause))
-    } finally {
-      if (!controller.signal.aborted) setLoading(false)
-    }
+    listInputs(controller.signal).then((items) => { if (!controller.signal.aborted) setStock(items ?? []) }).catch(() => undefined)
+    return () => controller.abort()
   }, [])
 
-  useEffect(() => {
-    const period = initialPeriod()
-    const timer = window.setTimeout(() => { void load(period) }, 0)
-    return () => { window.clearTimeout(timer); request.current?.abort() }
-  }, [load])
+  const items = (report?.consumo_por_insumo ?? []).filter((item) => item.cantidad_consumida > 0).sort((a, b) => b.cantidad_consumida - a.cantidad_consumida)
+  const max = Math.max(1, ...items.map((item) => item.cantidad_consumida))
+  const step = Math.max(1, Math.ceil(max / 4 / 3) * 3), top = step * 4
+  const days = report ? Math.max(1, Math.round((new Date(report.fecha_fin.slice(0, 10)).getTime() - new Date(report.fecha_inicio.slice(0, 10)).getTime()) / 86400000) + 1) : 1
+  const lead = items[0]
+  const projItem = lead && stock.find((entry) => entry.id === lead.insumo_id)
+  const proj = projItem && lead ? (() => {
+    const rate = lead.cantidad_consumida / days
+    const cap = Math.max(projItem.stock_minimo * 4, projItem.stock_actual * 1.25, 1)
+    const left = rate > 0 ? Math.floor((projItem.stock_actual - projItem.stock_minimo) / rate) : null
+    return { name: projItem.nombre, stock: `${qty(projItem.stock_actual)} ${projItem.unidad_medida}`, rate: `${qty(rate)} ${projItem.unidad_medida} por día`, days: left === null ? '—' : left <= 0 ? 'ya está en el mínimo' : `~${left} días`, lvl: Math.round(Math.max(0, projItem.stock_actual) / cap * 100), minPct: Math.round(projItem.stock_minimo / cap * 100) }
+  })() : null
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!filters.inicio || !filters.fin) {
-      setValidationError('Selecciona ambas fechas para generar el reporte.')
-      return
-    }
-    if (filters.inicio > filters.fin) {
-      setValidationError('La fecha de inicio no puede ser posterior a la fecha final.')
-      return
-    }
-    setValidationError('')
-    void load(filters)
-  }
-
-  const consumed = useMemo(() => report?.consumo_por_insumo
-    .filter((item) => item.cantidad_consumida > 0)
-    .sort((left, right) => right.cantidad_consumida - left.cantidad_consumida) ?? [], [report])
-  const leading = useMemo(() => consumed.reduce<ReporteConsumoInsumoDetalle | null>((current, item) => !current || item.cantidad_consumida > current.cantidad_consumida ? item : current, null), [consumed])
-
-  return <section className="report-page supply-consumption-report-page">
-    <header className="page-heading report-heading">
-      <div><h1>Consumo de insumos</h1><p>Analiza las salidas de inventario registradas por período.</p></div>
-      {report && <button className="secondary report-download" type="button" onClick={() => exportSupplyConsumptionReportPdf(report)}><Download size={18}/>Descargar PDF</button>}
-    </header>
-
-    <form className="report-filters" aria-label="Filtros del reporte de consumo de insumos" onSubmit={submit}>
-      <div className="report-filter-title"><span><CalendarDays size={21}/></span><div><b>Período del reporte</b><small>Selecciona un rango de fechas</small></div></div>
-      <label>Desde<input aria-label="Fecha de inicio" type="date" required value={filters.inicio} onChange={(event) => setFilters((current) => ({ ...current, inicio: event.target.value }))}/></label>
-      <label>Hasta<input aria-label="Fecha final" type="date" required value={filters.fin} onChange={(event) => setFilters((current) => ({ ...current, fin: event.target.value }))}/></label>
-      <button className="primary" type="submit" disabled={loading}>{loading ? 'Consultando…' : 'Aplicar filtro'}</button>
-    </form>
-
-    {validationError && <div className="alert error" role="alert">{validationError}</div>}
-    {error && <div className="alert error" role="alert"><span>{error}</span><button type="button" onClick={() => void load(appliedPeriod)}><RefreshCw size={16}/>Reintentar</button></div>}
-
-    {loading ? <div className="report-loading" role="status"><span className="spinner"/>Generando reporte…</div> : report && <>
-      <div className="report-period-label">Resultados del {formatLongDate(report.fecha_inicio)} al {formatLongDate(report.fecha_fin)}</div>
-      <section className="report-metrics supply-consumption-metrics" aria-label="Resumen de consumo de insumos">
-        <article><span className="metric-icon sales"><PackageSearch size={23}/></span><div><small>Insumos consumidos</small><strong>{consumed.length}</strong><span>Con salidas en el período</span></div></article>
-        <article><span className="metric-icon payments"><Activity size={23}/></span><div><small>Movimientos de salida</small><strong>{report.cantidad_movimientos}</strong><span>Registrados en el período</span></div></article>
-        <article><span className="metric-icon average"><TrendingDown size={23}/></span><div><small>Mayor consumo</small><strong>{leading ? formatQuantity(leading.cantidad_consumida, leading.unidad_medida) : 'Sin consumo'}</strong><span>{leading?.nombre ?? 'No hay salidas registradas'}</span></div></article>
-      </section>
-
-      <section className="supply-consumption-grid">
-        <article className="report-card consumption-chart-card">
-          <header><div><h2>Consumo por insumo</h2><p>Cantidad total utilizada durante el período</p></div><span className="chart-legend"><i/>Cantidad consumida</span></header>
-          {consumed.length === 0 ? <div className="report-empty"><ChartBarBig size={42}/><b>No hay consumo en este período</b><span>Prueba seleccionando otro rango de fechas.</span></div> : <div className="consumption-chart" style={{ height: Math.max(370, consumed.length * 58) }} role="img" aria-label="Gráfica de consumo de insumos por período">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={consumed} layout="vertical" margin={{ top: 8, right: 30, left: 16, bottom: 8 }}>
-                <CartesianGrid stroke="#e8eef5" strokeDasharray="4 4" horizontal={false}/>
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#7890aa', fontSize: 12 }}/>
-                <YAxis type="category" dataKey="nombre" width={118} axisLine={false} tickLine={false} tick={{ fill: '#526b86', fontSize: 12 }}/>
-                <Tooltip formatter={(value, _name, item) => [formatQuantity(Number(value), (item.payload as ReporteConsumoInsumoDetalle).unidad_medida), 'Consumo']} contentStyle={{ border: '1px solid #e2e9f2', borderRadius: 12, boxShadow: '0 8px 28px #082c4520' }}/>
-                <Bar dataKey="cantidad_consumida" name="Consumo" fill="#05aff2" radius={[0, 7, 7, 0]} maxBarSize={38}/>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>}
-        </article>
-
-        <article className="report-card consumption-detail-card">
-          <header><div><h2>Detalle de consumo</h2><p>Cantidades según su unidad de medida</p></div><span className="report-card-icon"><Scale size={20}/></span></header>
-          {consumed.length === 0 ? <div className="report-empty compact"><PackageSearch size={38}/><b>Sin salidas registradas</b></div> : <div className="consumption-detail-list">{consumed.map((item, index) => {
-            const relative = leading ? (item.cantidad_consumida / leading.cantidad_consumida) * 100 : 0
-            return <div className="consumption-detail-row" key={item.insumo_id}>
-              <span className="consumption-rank">{index + 1}</span>
-              <div><b>{item.nombre}</b><span>{item.unidad_medida} · {item.cantidad_movimientos} {item.cantidad_movimientos === 1 ? 'movimiento' : 'movimientos'}</span></div>
-              <strong>{formatQuantity(item.cantidad_consumida, item.unidad_medida)}</strong>
-              <div className="consumption-progress"><i style={{ width: `${relative}%` }}/></div>
+  return <section className="ct-page">
+    <ReportHead title="Consumo de insumos" sub="Analiza las salidas de inventario registradas por período." onPdf={report ? () => exportSupplyConsumptionReportPdf(report) : undefined} />
+    <PeriodBar period={period} badRange={badRange} onPick={pick} onFrom={setFrom} onTo={setTo} />
+    {error && <ReportError message={error} onRetry={retry} />}
+    <section className="rp-kp three">
+      <Kpi dark delay={.22} iconBg="#FFC93C" iconFg="#0A2433" icon={svgIcon(<><path d="M9 3h6v4l3 3v10a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V10l3-3z" /><path d="M6 14h12" /></>)} value={Math.round(items.length * e)} valueStyle={{ color: '#FFC93C' }} label="Insumos consumidos" sub="Con salidas en el período" />
+      <Kpi delay={.26} iconBg="#E2F6EC" iconFg="#1F8A5B" icon={svgIcon(<path d="M3 12h4l3-8 4 16 3-8h4" />, 2)} value={Math.round((report?.cantidad_movimientos ?? 0) * e)} label="Movimientos de salida" sub="Registrados en el período" />
+      <Kpi delay={.3} iconBg="#FFF0E4" iconFg="#B5541A" icon={svgIcon(<path d="M3 7l6 6 4-4 8 8M21 11v6h-6" />, 2)} value={lead ? `${qty(lead.cantidad_consumida * e)} ${lead.unidad_medida}` : '—'} label="Mayor consumo" sub={lead ? lead.nombre : 'Sin salidas'} />
+    </section>
+    <section className="rp-rg">
+      <div className="rp-panel" style={{ animationDelay: '.34s' }}>
+        <PanelHead title="Consumo por insumo" sub="Cantidad total utilizada durante el período"><span className="rp-legend1"><i />Cantidad consumida</span></PanelHead>
+        {!report ? <div className="rp-loading" role="status">{loading ? 'Cargando reporte…' : 'Sin datos.'}</div>
+          : items.length ? <div className="rp-hbars" role="img" aria-label={`Gráfica de consumo por insumo: ${items.map((item) => `${item.nombre}: ${qty(item.cantidad_consumida)} ${item.unidad_medida}`).join(', ')}`}>
+            <div className="rp-axis" aria-hidden="true">{[0, 1, 2, 3, 4].map((i) => <span key={i} style={{ left: `${i * 25}%` }}>{step * i}</span>)}</div>
+            {items.map((item, i) => <div key={item.insumo_id} className="rp-hb" style={{ animationDelay: `${(0.4 + i * 0.1).toFixed(2)}s` }}>
+              <span className="rp-hbl">{item.nombre}</span>
+              <div className="rp-hbt">{[0, 1, 2, 3, 4].map((t) => <i key={t} style={{ left: `${t * 25}%` }} />)}<span className="rp-hbf" style={{ width: `${Math.round(item.cantidad_consumida / top * 100)}%`, animationDelay: `${(0.6 + i * 0.1).toFixed(2)}s` }}><span className="rp-drops" aria-hidden="true" /><em>{qty(item.cantidad_consumida)} {item.unidad_medida}</em></span></div>
+            </div>)}
+          </div>
+          : <div className="rp-emptyr">No hay salidas de inventario en este período.</div>}
+      </div>
+      <div className="rp-col">
+        <div className="rp-panel" style={{ animationDelay: '.38s' }}>
+          <PanelHead title="Detalle de consumo" sub="Cantidades según su unidad de medida" />
+          {items.length ? items.map((item, i) => <div key={item.insumo_id} className="rp-mrow">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span className="rp-rk2">{i + 1}</span>
+              <span style={{ flex: 1, minWidth: 0 }}><span className="ad-disp" style={{ display: 'block', fontSize: 18, fontWeight: 600 }}>{item.nombre}</span><span style={{ fontSize: 13, color: '#5A7280' }}>{item.unidad_medida} · {item.cantidad_movimientos} {item.cantidad_movimientos === 1 ? 'movimiento' : 'movimientos'}</span></span>
+              <span className="ad-disp" style={{ fontSize: 20, fontWeight: 800 }}>{qty(item.cantidad_consumida)} {item.unidad_medida}</span>
             </div>
-          })}</div>}
-        </article>
-      </section>
-    </>}
+            <div className="rp-mbar"><span style={{ width: `${Math.round(item.cantidad_consumida / max * 100)}%`, background: '#0E9BD6' }} /></div>
+          </div>) : <p style={{ margin: 0, color: '#5A7280' }}>Sin datos.</p>}
+        </div>
+        {proj && <div className="rp-panel projc" style={{ animationDelay: '.42s' }}>
+          <PanelHead title={`Proyección · ${proj.name}`} sub="Estimado con el ritmo del período" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            <div className="rp-tank3" aria-hidden="true"><div className="rp-lv3" style={{ height: `${proj.lvl}%` }}><svg viewBox="0 0 400 14" preserveAspectRatio="none" aria-hidden="true"><path d="M0 7 Q 25 0 50 7 T 100 7 T 150 7 T 200 7 T 250 7 T 300 7 T 350 7 T 400 7 V14 H0 Z" fill="#5BC3EC" /></svg></div><span className="rp-mn3" style={{ bottom: `${proj.minPct}%` }} /></div>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 13, color: '#A9C1CD' }}>Stock actual</p>
+              <p className="ad-disp" style={{ margin: '2px 0 10px', fontSize: 30, fontWeight: 800, color: '#FFC93C', lineHeight: 1 }}>{proj.stock}</p>
+              <p style={{ margin: 0, fontSize: 14 }}>Ritmo: <b>{proj.rate}</b></p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Llega al mínimo en <b style={{ color: '#FFC93C' }}>{proj.days}</b></p>
+            </div>
+          </div>
+        </div>}
+      </div>
+    </section>
   </section>
 }
