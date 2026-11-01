@@ -4,10 +4,10 @@ import { CheckIcon, CloseIcon, EditIcon, PlusIcon, RefreshIcon, SearchIcon, Spin
 const delay = (seconds: number) => ({ animationDelay: `${seconds}s` })
 
 /** Encabezado de catálogo: ceja, título con punto celeste, subtítulo y acciones. */
-export function CatalogHead({ title, sub, children }: { title: string; sub: string; children?: ReactNode }) {
+export function CatalogHead({ title, sub, children, eyebrow = 'Catálogos' }: { title: string; sub: string; children?: ReactNode; eyebrow?: string }) {
   return <section className="ct-ph">
     <div>
-      <p className="ct-eyb ad-st">Catálogos</p>
+      <p className="ct-eyb ad-st">{eyebrow}</p>
       <h1 className="ct-ttl ad-st" style={delay(.05)}>{title}<em>.</em></h1>
       <p className="ct-sub ad-st" style={delay(.1)}>{sub}</p>
     </div>

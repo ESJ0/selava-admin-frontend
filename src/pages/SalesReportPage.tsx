@@ -1,151 +1,121 @@
-import { CalendarDays, ChartColumnBig, CircleDollarSign, CreditCard, Download, ReceiptText, RefreshCw, ShoppingBag } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { errorMessage } from '../api/client'
 import { getSalesReport } from '../api/reports'
+import { Insight, Kpi, PanelHead, PeriodBar, ReportError, ReportHead } from '../components/admin/ReportKit'
+import { dashDay, qMoney, useCountUp, useReport, weekdayDay } from '../hooks/useReport'
 import type { ReporteVentas } from '../types'
 import { exportSalesReportPdf } from '../utils/reportPdf'
+import '../styles/catalogs.css'
+import '../styles/reports.css'
 
-interface Periodo {
-  inicio: string
-  fin: string
+const METHOD_COLORS = ['#0E9BD6', '#FFC93C', '#7EE0B5', '#C9B8FF']
+const svgIcon = (children: React.ReactNode, width = 1.9) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
+
+/** Curva suave sin sobrepasar los puntos (igual que el diseño). */
+function smooth(points: [number, number][]) {
+  if (points.length < 2) return points.length ? `M${points[0][0]} ${points[0][1]}` : ''
+  let d = `M${points[0][0]} ${points[0][1]}`
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] ?? points[i], p1 = points[i], p2 = points[i + 1], p3 = points[i + 2] ?? p2
+    const lo = Math.min(p1[1], p2[1]), hi = Math.max(p1[1], p2[1]), clamp = (y: number) => Math.max(lo, Math.min(hi, y))
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, clamp(p1[1] + (p2[1] - p0[1]) / 6)], c2 = [p2[0] - (p3[0] - p1[0]) / 6, clamp(p2[1] - (p3[1] - p1[1]) / 6)]
+    d += ` C${c1[0].toFixed(1)} ${c1[1].toFixed(1)} ${c2[0].toFixed(1)} ${c2[1].toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`
+  }
+  return d
 }
 
-function inputDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function initialPeriod(): Periodo {
-  const today = new Date()
-  return { inicio: inputDate(new Date(today.getFullYear(), today.getMonth(), 1)), fin: inputDate(today) }
-}
-
-function dateFromApi(value: string) {
-  return new Date(`${value}T12:00:00`)
-}
-
-const currency = new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' })
-const wholeCurrency = new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ', maximumFractionDigits: 0 })
-const shortDate = new Intl.DateTimeFormat('es-GT', { day: '2-digit', month: 'short' })
-const longDate = new Intl.DateTimeFormat('es-GT', { day: 'numeric', month: 'long', year: 'numeric' })
-
-function formatCurrency(value: number) {
-  return currency.format(value)
-}
-
-function formatShortDate(value: string) {
-  return shortDate.format(dateFromApi(value))
-}
-
-function formatLongDate(value: string) {
-  return longDate.format(dateFromApi(value))
+function SalesChart({ report }: { report: ReporteVentas }) {
+  const days = report.ventas_por_dia.filter((day) => day.total_ventas > 0).slice().sort((a, b) => a.fecha.localeCompare(b.fecha))
+  const max = Math.max(1, ...days.map((day) => day.total_ventas))
+  const nice = Math.ceil(max / 75) * 75
+  const t0 = new Date(`${report.fecha_inicio.slice(0, 10)}T12:00`).getTime(), t1 = new Date(`${report.fecha_fin.slice(0, 10)}T12:00`).getTime()
+  const X = (value: string) => days.length === 1 ? 400 : 80 + ((new Date(`${value.slice(0, 10)}T12:00`).getTime() - t0) / Math.max(1, t1 - t0)) * 640
+  const Y = (value: number) => 280 - (value / nice) * 250
+  const points = days.map((day) => [X(day.fecha), Y(day.total_ventas)] as [number, number])
+  const line = smooth(points)
+  const area = points.length ? `${line} L${points[points.length - 1][0].toFixed(1)} 280 L${points[0][0].toFixed(1)} 280 Z` : ''
+  return <svg viewBox="0 0 760 320" className="rp-chart" role="img" aria-label="Gráfica de ventas por día">
+    <defs><linearGradient id="rp-vg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#0E9BD6" stopOpacity=".32" /><stop offset="1" stopColor="#0E9BD6" stopOpacity="0" /></linearGradient></defs>
+    {[0, 1, 2, 3, 4].map((i) => <g key={i}>
+      <line x1="60" x2="740" y1={280 - i * 62.5} y2={280 - i * 62.5} stroke="#E6EEF2" strokeDasharray="4 6" />
+      <text x="50" y={284 - i * 62.5} textAnchor="end" fontSize="12" fill="#5A7280" fontFamily="Instrument Sans, sans-serif">Q{Math.round(nice / 4 * i)}</text>
+    </g>)}
+    <path className="rp-areaf" d={area} fill="url(#rp-vg)" />
+    <path className="rp-draw" d={line} fill="none" stroke="#0E9BD6" strokeWidth="3.5" strokeLinecap="round" />
+    {days.map((day, i) => {
+      const [x, y] = points[i]
+      const tx = Math.max(60, Math.min(620, x - 60)), ty = y > 90 ? y - 62 : y + 14
+      const label = `${dashDay(day.fecha)}: ${qMoney(day.total_ventas)}`
+      return <g key={day.fecha} className="rp-pt" tabIndex={0} aria-label={label}>
+        <line x1={x} x2={x} y1={y} y2="280" stroke="#BFE6F7" strokeWidth="1.5" strokeDasharray="3 4" />
+        <circle cx={x} cy={y} r="16" fill="transparent" />
+        <circle className="dot" cx={x} cy={y} r="6" fill="#fff" stroke="#0A2433" strokeWidth="3" />
+        <text x={x} y="302" textAnchor="middle" fontSize="12" fill="#5A7280" fontFamily="Instrument Sans, sans-serif">{dashDay(day.fecha)}</text>
+        <g className="tip" aria-hidden="true"><rect x={tx} y={ty} width="120" height="48" rx="12" fill="#0A2433" />
+          <text x={tx + 60} y={ty + 22} textAnchor="middle" fontSize="16" fontWeight="800" fill="#FFC93C" fontFamily="Bricolage Grotesque, sans-serif">{qMoney(day.total_ventas)}</text>
+          <text x={tx + 60} y={ty + 38} textAnchor="middle" fontSize="11" fill="#A9C1CD" fontFamily="Instrument Sans, sans-serif">{day.cantidad_pagos} {day.cantidad_pagos === 1 ? 'pago' : 'pagos'}</text></g>
+      </g>
+    })}
+  </svg>
 }
 
 export function SalesReportPage() {
-  const [filters, setFilters] = useState<Periodo>(initialPeriod)
-  const [appliedPeriod, setAppliedPeriod] = useState<Periodo>(initialPeriod)
-  const [report, setReport] = useState<ReporteVentas | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [validationError, setValidationError] = useState('')
-  const request = useRef<AbortController | null>(null)
+  const { period, report, loading, error, badRange, pick, setFrom, setTo, retry } = useReport(getSalesReport)
+  const e = useCountUp(report)
+  const days = (report?.ventas_por_dia ?? []).filter((day) => day.total_ventas > 0)
+  const methods = (report?.ventas_por_metodo_pago ?? []).filter((item) => item.total_ventas > 0)
+  const total = report?.total_ventas ?? 0, sales = report?.cantidad_ventas ?? 0, pays = report?.cantidad_pagos ?? 0
+  const bestValue = Math.max(0, ...days.map((day) => day.total_ventas))
+  const best = days.filter((day) => day.total_ventas === bestValue).sort((a, b) => a.fecha.localeCompare(b.fecha))
+  const rows = days.slice().sort((a, b) => b.fecha.localeCompare(a.fecha))
 
-  const load = useCallback(async (period: Periodo) => {
-    request.current?.abort()
-    const controller = new AbortController()
-    request.current = controller
-    setAppliedPeriod(period)
-    setLoading(true)
-    setError('')
-    setReport(null)
-    try {
-      const response = await getSalesReport(period.inicio, period.fin, controller.signal)
-      if (!controller.signal.aborted) setReport(response)
-    } catch (cause) {
-      if (!controller.signal.aborted) setError(errorMessage(cause))
-    } finally {
-      if (!controller.signal.aborted) setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    const period = initialPeriod()
-    const timer = window.setTimeout(() => { void load(period) }, 0)
-    return () => { window.clearTimeout(timer); request.current?.abort() }
-  }, [load])
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!filters.inicio || !filters.fin) {
-      setValidationError('Selecciona ambas fechas para generar el reporte.')
-      return
-    }
-    if (filters.inicio > filters.fin) {
-      setValidationError('La fecha de inicio no puede ser posterior a la fecha final.')
-      return
-    }
-    setValidationError('')
-    void load(filters)
-  }
-
-  const average = report && report.cantidad_ventas > 0 ? report.total_ventas / report.cantidad_ventas : 0
-
-  return <section className="report-page sales-report-page">
-    <header className="page-heading report-heading">
-      <div><h1>Reporte de ventas</h1><p>Consulta el comportamiento de tus ventas por período.</p></div>
-      {report && <button className="secondary report-download" type="button" onClick={() => exportSalesReportPdf(report)}><Download size={18}/>Descargar PDF</button>}
-    </header>
-
-    <form className="report-filters" aria-label="Filtros del reporte de ventas" onSubmit={submit}>
-      <div className="report-filter-title"><span><CalendarDays size={21}/></span><div><b>Período del reporte</b><small>Selecciona un rango de fechas</small></div></div>
-      <label>Desde<input aria-label="Fecha de inicio" type="date" required value={filters.inicio} onChange={(event) => setFilters((current) => ({ ...current, inicio: event.target.value }))}/></label>
-      <label>Hasta<input aria-label="Fecha final" type="date" required value={filters.fin} onChange={(event) => setFilters((current) => ({ ...current, fin: event.target.value }))}/></label>
-      <button className="primary" type="submit" disabled={loading}>{loading ? 'Consultando…' : 'Aplicar filtro'}</button>
-    </form>
-
-    {validationError && <div className="alert error" role="alert">{validationError}</div>}
-    {error && <div className="alert error" role="alert"><span>{error}</span><button type="button" onClick={() => void load(appliedPeriod)}><RefreshCw size={16}/>Reintentar</button></div>}
-
-    {loading ? <div className="report-loading" role="status"><span className="spinner"/>Generando reporte…</div> : report && <>
-      <div className="report-period-label">Resultados del {formatLongDate(report.fecha_inicio)} al {formatLongDate(report.fecha_fin)}</div>
-      <section className="report-metrics sales-metrics" aria-label="Resumen de ventas">
-        <article><span className="metric-icon sales"><CircleDollarSign size={23}/></span><div><small>Total vendido</small><strong>{formatCurrency(report.total_ventas)}</strong><span>Ingresos del período</span></div></article>
-        <article><span className="metric-icon orders"><ShoppingBag size={23}/></span><div><small>Ventas</small><strong>{report.cantidad_ventas}</strong><span>Pedidos con al menos un pago</span></div></article>
-        <article><span className="metric-icon payments"><ReceiptText size={23}/></span><div><small>Pagos recibidos</small><strong>{report.cantidad_pagos}</strong><span>Transacciones registradas</span></div></article>
-        <article><span className="metric-icon average"><ChartColumnBig size={23}/></span><div><small>Promedio por venta</small><strong>{formatCurrency(average)}</strong><span>Ingreso promedio por pedido</span></div></article>
-      </section>
-
-      <section className="report-grid">
-        <article className="report-card sales-chart-card">
-          <header><div><h2>Ventas por día</h2><p>Monto recibido diariamente</p></div><span className="chart-legend"><i/>Ventas</span></header>
-          {report.ventas_por_dia.length === 0 ? <div className="report-empty"><ChartColumnBig size={42}/><b>No hay ventas en este período</b><span>Prueba seleccionando otro rango de fechas.</span></div> : <div className="sales-chart" role="img" aria-label="Gráfica de ventas por día">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={report.ventas_por_dia} margin={{ top: 10, right: 12, left: 4, bottom: 0 }}>
-                <defs><linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#05aff2" stopOpacity={0.3}/><stop offset="100%" stopColor="#05aff2" stopOpacity={0.02}/></linearGradient></defs>
-                <CartesianGrid stroke="#e8eef5" strokeDasharray="4 4" vertical={false}/>
-                <XAxis dataKey="fecha" tickFormatter={formatShortDate} axisLine={false} tickLine={false} tick={{ fill: '#7890aa', fontSize: 12 }} minTickGap={28}/>
-                <YAxis tickFormatter={(value) => wholeCurrency.format(Number(value))} axisLine={false} tickLine={false} tick={{ fill: '#7890aa', fontSize: 12 }} width={76}/>
-                <Tooltip labelFormatter={(label) => formatLongDate(String(label))} formatter={(value) => [formatCurrency(Number(value)), 'Ventas']} contentStyle={{ border: '1px solid #e2e9f2', borderRadius: 12, boxShadow: '0 8px 28px #082c4520' }}/>
-                <Area type="monotone" dataKey="total_ventas" name="Ventas" stroke="#05aff2" strokeWidth={3} fill="url(#salesFill)" activeDot={{ r: 5, fill: '#05aff2', stroke: '#fff', strokeWidth: 2 }}/>
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>}
-        </article>
-
-        <article className="report-card payment-methods-card">
-          <header><div><h2>Métodos de pago</h2><p>Distribución de ingresos</p></div><span className="report-card-icon"><CreditCard size={20}/></span></header>
-          {report.ventas_por_metodo_pago.length === 0 ? <div className="report-empty compact"><CreditCard size={38}/><b>Sin pagos registrados</b></div> : <div className="payment-method-list">{report.ventas_por_metodo_pago.map((item) => {
-            const percentage = report.total_ventas > 0 ? (item.total_ventas / report.total_ventas) * 100 : 0
-            return <div key={item.metodo_pago.id} className="payment-method-row">
-              <div><b>{item.metodo_pago.nombre}</b><span>{item.cantidad_pagos} {item.cantidad_pagos === 1 ? 'pago' : 'pagos'}</span></div><strong>{formatCurrency(item.total_ventas)}</strong>
-              <div className="payment-share"><i style={{ width: `${percentage}%` }}/></div><small>{percentage.toLocaleString('es-GT', { maximumFractionDigits: 1 })}%</small>
+  return <section className="ct-page">
+    <ReportHead title="Reporte de ventas" sub="Consulta el comportamiento de tus ventas por período." onPdf={report ? () => exportSalesReportPdf(report) : undefined} />
+    <PeriodBar period={period} badRange={badRange} onPick={pick} onFrom={setFrom} onTo={setTo} />
+    {error && <ReportError message={error} onRetry={retry} />}
+    <section className="rp-kp">
+      <Kpi dark delay={.22} iconBg="#FFC93C" iconFg="#0A2433" icon={svgIcon(<><circle cx="12" cy="12" r="9" /><path d="M14.5 9.5c-.4-1-1.4-1.5-2.5-1.5-1.5 0-2.5.8-2.5 2s1 1.6 2.5 2 2.5.9 2.5 2-1 2-2.5 2c-1.2 0-2.2-.6-2.6-1.6M12 6.5v11" /></>, 2)} value={qMoney(total * e)} valueStyle={{ color: '#FFC93C' }} label="Total vendido" sub="Ingresos del período" />
+      <Kpi delay={.26} iconBg="#DDF1FA" iconFg="#06709F" icon={svgIcon(<><path d="M4 7h16l-1.5 12a2 2 0 0 1-2 1.8h-9a2 2 0 0 1-2-1.8z" /><path d="M9 7a3 3 0 0 1 6 0" /></>)} value={Math.round(sales * e)} label="Ventas" sub="Pedidos con al menos un pago" />
+      <Kpi delay={.3} iconBg="#E2F6EC" iconFg="#1F8A5B" icon={svgIcon(<><path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z" /><path d="M9 8h6M9 12h6M9 16h3" /></>)} value={Math.round(pays * e)} label="Pagos recibidos" sub="Transacciones registradas" />
+      <Kpi delay={.34} iconBg="#FFF4D6" iconFg="#9A6A00" icon={svgIcon(<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />)} value={sales ? qMoney(total / sales * e) : 'Q 0.00'} label="Promedio por venta" sub="Ingreso promedio por pedido" />
+    </section>
+    <section className="rp-rg">
+      <div className="rp-panel" style={{ animationDelay: '.38s' }}>
+        <PanelHead title="Ventas por día" sub="Monto recibido diariamente · pasa el mouse por los puntos"><span className="rp-legend1"><i />Ventas</span></PanelHead>
+        {!report ? <div className="rp-loading" role="status">{loading ? 'Cargando reporte…' : 'Sin datos.'}</div>
+          : days.length ? <SalesChart key={`${report.fecha_inicio}-${report.fecha_fin}`} report={report} />
+          : <div className="rp-emptyr">No hay pagos en este período.</div>}
+      </div>
+      <div className="rp-col">
+        <div className="rp-panel" style={{ animationDelay: '.42s' }}>
+          <PanelHead title="Métodos de pago" sub="Distribución de ingresos" />
+          {methods.length ? methods.map((item, i) => {
+            const pct = total ? Math.round(item.total_ventas / total * 100) : 0
+            return <div key={item.metodo_pago.id} className="rp-mrow">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                <span><span className="ad-disp" style={{ display: 'block', fontSize: 18, fontWeight: 600 }}>{item.metodo_pago.nombre}</span><span style={{ fontSize: 13, color: '#5A7280' }}>{item.cantidad_pagos} {item.cantidad_pagos === 1 ? 'pago' : 'pagos'}</span></span>
+                <span style={{ textAlign: 'right' }}><span className="ad-disp" style={{ display: 'block', fontSize: 20, fontWeight: 800 }}>{qMoney(item.total_ventas)}</span><span style={{ fontSize: 13, color: '#5A7280' }}>{pct}%</span></span>
+              </div>
+              <div className="rp-mbar"><span style={{ width: `${pct}%`, background: METHOD_COLORS[i % 4] }} /></div>
             </div>
-          })}</div>}
-        </article>
-      </section>
-    </>}
+          }) : <p style={{ margin: 0, color: '#5A7280' }}>Sin datos.</p>}
+        </div>
+        <div className="rp-panel" style={{ animationDelay: '.46s' }}>
+          <PanelHead title="Lo destacado" sub="Calculado del período" />
+          {days.length ? <>
+            <Insight icon="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z">{best.length > 1 ? 'Mejores días:' : 'Mejor día:'} <b>{best.map((day) => dashDay(day.fecha)).join(' y ')}</b> con {qMoney(bestValue)}{best.length > 1 ? ' cada uno.' : '.'}</Insight>
+            <Insight icon="M3 12h4l3-8 4 16 3-8h4">Hubo ventas en <b>{days.length} {days.length === 1 ? 'día' : 'días'}</b> del período.</Insight>
+            <Insight icon="M4 7h16l-1.5 12a2 2 0 0 1-2 1.8h-9a2 2 0 0 1-2-1.8zM9 7a3 3 0 0 1 6 0">Cada venta tuvo en promedio <b>{(pays / Math.max(1, sales)).toFixed(1)} pagos</b> (abonos incluidos).</Insight>
+          </> : <p style={{ margin: 0, color: '#5A7280' }}>Sin datos.</p>}
+        </div>
+      </div>
+    </section>
+    <section className="rp-panel" style={{ marginTop: 18, animationDelay: '.5s' }}>
+      <PanelHead title="Pagos del período" sub={`${pays} ${pays === 1 ? 'pago registrado' : 'pagos registrados'}`} />
+      {rows.length ? rows.map((day, i) => <div key={day.fecha} className="rp-prow" style={{ animationDelay: `${(0.04 * Math.min(i, 12) + 0.5).toFixed(2)}s` }}>
+        <span className="ad-disp" style={{ fontWeight: 800 }}>{weekdayDay(day.fecha)}</span>
+        <span style={{ fontWeight: 600 }}>{day.cantidad_ventas} {day.cantidad_ventas === 1 ? 'venta' : 'ventas'}</span>
+        <span className="ct-stb" style={{ background: '#E2F6EC', color: '#1F8A5B', justifySelf: 'start' }}><i />{day.cantidad_pagos} {day.cantidad_pagos === 1 ? 'pago' : 'pagos'}</span>
+        <span className="ad-disp" style={{ textAlign: 'right', fontWeight: 800, color: '#06709F' }}>+ {qMoney(day.total_ventas)}</span>
+      </div>) : <p style={{ margin: 0, color: '#5A7280' }}>{report ? 'Sin pagos registrados.' : 'Sin datos.'}</p>}
+    </section>
   </section>
 }
