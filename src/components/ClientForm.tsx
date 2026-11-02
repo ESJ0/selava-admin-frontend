@@ -3,6 +3,7 @@ import { clientFieldErrors, createClient, updateClient } from '../api/clients'
 import { errorMessage } from '../api/client'
 import type { Cliente, ClienteCreate } from '../types'
 import { initials } from '../utils/adminFormat'
+import { isValidNit, normalizeNit } from '../utils/nit'
 import { CheckIcon, CloseIcon, InfoIcon, SpinnerIcon } from './admin/icons'
 
 type FieldErrors = Partial<Record<keyof ClienteCreate, string>>
@@ -24,16 +25,17 @@ function validate(payload: Values): FieldErrors {
   else if (payload.telefono.length > 20 || !phonePattern.test(payload.telefono)) errors.telefono = 'Debe tener entre 8 y 15 caracteres y usar solo números, +, espacios o guiones.'
   if (payload.email && (payload.email.length > 150 || !emailPattern.test(payload.email))) errors.email = 'Ingresa un correo electrónico válido.'
   if (payload.direccion && payload.direccion.length > 255) errors.direccion = 'No puede superar los 255 caracteres.'
+  if (payload.nit && !isValidNit(payload.nit)) errors.nit = 'NIT inválido: revisa el dígito verificador o escribe CF.'
   return errors
 }
 
 const trimmed = (values: Values): Values => ({
-  nombre: values.nombre.trim(), apellido: values.apellido.trim(), telefono: values.telefono.trim(), email: values.email.trim(), direccion: values.direccion.trim(),
+  nombre: values.nombre.trim(), apellido: values.apellido.trim(), telefono: values.telefono.trim(), email: values.email.trim(), direccion: values.direccion.trim(), nit: normalizeNit(values.nit),
 })
 
 /** Modal de registro/edición de cliente con vista previa en vivo, según el diseño. */
 export function ClientForm({ client, onClose, onSaved }: { client?: Cliente; onClose: () => void; onSaved: (saved: Cliente | null) => void }) {
-  const blank: Values = { nombre: client?.nombre ?? '', apellido: client?.apellido ?? '', telefono: client?.telefono ?? '', email: client?.email ?? '', direccion: client?.direccion ?? '' }
+  const blank: Values = { nombre: client?.nombre ?? '', apellido: client?.apellido ?? '', telefono: client?.telefono ?? '', email: client?.email ?? '', direccion: client?.direccion ?? '', nit: client?.nit ?? '' }
   const [values, setValues] = useState<Values>(blank)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -70,6 +72,7 @@ export function ClientForm({ client, onClose, onSaved }: { client?: Cliente; onC
         nombre: payload.nombre, apellido: payload.apellido, telefono: payload.telefono,
         ...(payload.email && { email: payload.email }),
         ...(payload.direccion && { direccion: payload.direccion }),
+        ...(payload.nit && { nit: payload.nit }),
       })
       setSaved(created ?? ({ ...payload, id: 0 } as unknown as Cliente))
       onSaved(created ?? null)
@@ -105,6 +108,7 @@ export function ClientForm({ client, onClose, onSaved }: { client?: Cliente; onC
           <p style={{ margin: 0, fontSize: 14, color: '#3E5866', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview.email || 'correo@ejemplo.com'}</p>
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1.5px dashed #DCE7EC', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span style={{ color: '#5A7280' }}>Teléfono</span><strong>{preview.telefono ? `+502 ${preview.telefono}` : '—'}</strong></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span style={{ color: '#5A7280' }}>NIT</span><strong>{preview.nit ? normalizeNit(preview.nit) : '—'}</strong></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span style={{ color: '#5A7280' }}>Dirección</span><strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>{preview.direccion || '—'}</strong></div>
           </div>
         </div>
@@ -122,7 +126,7 @@ export function ClientForm({ client, onClose, onSaved }: { client?: Cliente; onC
             <p className="ad-disp ad-st" style={{ animationDelay: '.15s', margin: '24px 0 8px', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em' }}>¡Cliente registrado!</p>
             <p className="ad-st" style={{ animationDelay: '.22s', margin: '0 0 28px', color: '#3E5866', fontSize: 16 }}>{`${saved.nombre} ${saved.apellido}`.trim()} ya aparece en tu lista de clientes.</p>
             <div className="ad-st" style={{ animationDelay: '.3s', display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <button className="ad-cancel" type="button" onClick={() => { setSaved(null); setValues({ nombre: '', apellido: '', telefono: '', email: '', direccion: '' }); setErrors({}) }}>Registrar otro</button>
+              <button className="ad-cancel" type="button" onClick={() => { setSaved(null); setValues({ nombre: '', apellido: '', telefono: '', email: '', direccion: '', nit: '' }); setErrors({}) }}>Registrar otro</button>
               <button className="ad-savec" type="button" onClick={onClose}>Listo</button>
             </div>
           </div>
@@ -142,7 +146,8 @@ export function ClientForm({ client, onClose, onSaved }: { client?: Cliente; onC
               <div className="ad-mr"><label className="ad-ml" htmlFor="m-tel">Teléfono <b>*</b></label>
                 <div className="ad-pfx"><span aria-hidden="true">+502</span><input className={fieldClass('telefono')} id="m-tel" name="telefono" type="tel" inputMode="tel" value={values.telefono} maxLength={20} placeholder="5512-3456" aria-invalid={Boolean(errors.telefono)} onChange={(event) => set('telefono', event.target.value)} /></div>
                 {errors.telefono && <span className="ad-fe">{errors.telefono}</span>}</div>
-              <div className="ad-mr"><label className="ad-ml" htmlFor="m-nit">NIT</label><input className="ad-mi" id="m-nit" name="nit" placeholder="Ej. 5487963-2" defaultValue={client?.nit} disabled title="El backend actual todavía no admite NIT" /><span className="ad-hint"><InfoIcon size={14} />Pendiente de soporte en API.</span></div>
+              <div className="ad-mr"><label className="ad-ml" htmlFor="m-nit">NIT</label><input className={fieldClass('nit')} id="m-nit" name="nit" value={values.nit} maxLength={20} placeholder="Ej. 576937-K o CF" autoComplete="off" aria-invalid={Boolean(errors.nit)} onChange={(event) => set('nit', event.target.value.toUpperCase())} onBlur={() => { if (values.nit.trim()) set('nit', normalizeNit(values.nit)) }} />
+                {errors.nit ? <span className="ad-fe">{errors.nit}</span> : <span className="ad-hint"><InfoIcon size={14} />Opcional. Escribe CF si es consumidor final.</span>}</div>
               <div className="ad-mr ad-span2"><label className="ad-ml" htmlFor="m-mail">Correo electrónico</label><input className={fieldClass('email')} id="m-mail" name="email" type="email" value={values.email} maxLength={150} placeholder="correo@gmail.com" aria-invalid={Boolean(errors.email)} onChange={(event) => set('email', event.target.value)} />{errors.email && <span className="ad-fe">{errors.email}</span>}</div>
               <div className="ad-mr ad-span2"><label className="ad-ml" htmlFor="m-dir">Dirección</label><input className={fieldClass('direccion')} id="m-dir" name="direccion" value={values.direccion} maxLength={255} placeholder="Zona 10, Ciudad de Guatemala" aria-invalid={Boolean(errors.direccion)} onChange={(event) => set('direccion', event.target.value)} />{errors.direccion && <span className="ad-fe">{errors.direccion}</span>}</div>
             </div>

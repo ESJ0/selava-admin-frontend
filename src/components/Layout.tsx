@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useOrdersOverview } from '../hooks/useOrdersOverview'
 import { useAuth } from '../store/auth'
+import { LOGOUT_FLAG } from '../utils/session'
+import { SessionScreen } from './admin/SessionScreen'
 import { calendarDay, isActiveOrder, roleLabel, startOfDay, todayText } from '../utils/adminFormat'
 import {
   BarsIcon, BellIcon, CalendarIcon, CardIcon, CheckIcon, ChevronDownIcon, ClipboardIcon, ClockIcon, DashboardIcon, DropIcon, FlaskIcon,
@@ -71,6 +73,16 @@ export function Layout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [ordersOpen, setOrdersOpen] = useState(true)
   const logout = useAuth((state) => state.logout)
+  const [leaving, setLeaving] = useState(false)
+  useEffect(() => {
+    if (!leaving) return
+    // Muestra la animación de despedida y luego cierra la sesión.
+    const timer = window.setTimeout(() => {
+      try { sessionStorage.setItem(LOGOUT_FLAG, '1') } catch { /* almacenamiento no disponible */ }
+      logout()
+    }, import.meta.env.MODE === 'test' ? 0 : 1100)
+    return () => window.clearTimeout(timer)
+  }, [leaving, logout])
   const roleId = useAuth((state) => state.roleId)
   const roleName = roleLabel(roleId)
   const close = () => setOpen(false)
@@ -87,6 +99,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <section aria-labelledby="operation-nav-title">
           <h2 className="ad-sec" id="operation-nav-title">Operación</h2>
           {roleId === 3 ? <NavLink className={linkClass} to="/pedidos" onClick={close}><ClipboardIcon />Pedidos</NavLink> : <>
+            <NavLink className={linkClass} to="/clientes" onClick={close}><UsersIcon />Clientes</NavLink>
             <section aria-label="Pedidos">
               <button className={`ad-si${inOrders && !ordersOpen ? ' on' : ''}`} type="button" aria-expanded={ordersOpen} aria-controls="orders-submenu" onClick={() => setOrdersOpen((value) => !value)}>
                 <ClipboardIcon /><span>Pedidos</span><ChevronDownIcon className="ad-chev" size={16} style={{ transform: `rotate(${ordersOpen ? 180 : 0}deg)` }} />
@@ -96,7 +109,6 @@ export function Layout({ children }: { children: ReactNode }) {
                 <NavLink className={({ isActive }) => linkClass({ isActive: isActive || /^\/pedidos\/\d+/.test(location.pathname) })} to="/pedidos" end onClick={close}><SearchIcon size={18} />Consultar pedidos</NavLink>
               </div>}
             </section>
-            <NavLink className={linkClass} to="/clientes" onClick={close}><UsersIcon />Clientes</NavLink>
           </>}
         </section>
         {roleId !== 3 && <section aria-labelledby="catalog-nav-title">
@@ -109,7 +121,7 @@ export function Layout({ children }: { children: ReactNode }) {
           {reportLinks.map(({ to, label, Icon }) => <NavLink key={to} className={linkClass} to={to} onClick={close}><Icon />{label}</NavLink>)}
         </section>}
       </nav>
-      <button className="ad-si ad-logout" type="button" onClick={logout}><LogoutIcon />Cerrar sesión</button>
+      <button className="ad-si ad-logout" type="button" onClick={() => setLeaving(true)}><LogoutIcon />Cerrar sesión</button>
     </aside>
     <div className={`ad-backdrop${open ? ' open' : ''}`} onClick={close} aria-hidden="true" />
 
@@ -129,5 +141,6 @@ export function Layout({ children }: { children: ReactNode }) {
       </header>
       <main className="ad-main">{children}</main>
     </div>
+    {leaving && <SessionScreen tone="out" title="Cerrando sesión" text="Guardando todo en orden… ¡hasta pronto!" />}
   </div>
 }

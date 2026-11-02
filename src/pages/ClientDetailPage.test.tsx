@@ -49,7 +49,7 @@ describe('ClientDetailPage', () => {
     await user.clear(within(form).getByLabelText('Teléfono *'))
     await user.type(within(form).getByLabelText('Teléfono *'), '5555-9999')
     await user.click(within(form).getByRole('button', { name: 'Guardar cambios' }))
-    await waitFor(() => expect(mocks.update).toHaveBeenCalledWith(1, { nombre: 'María', apellido: 'López', telefono: '5555-9999', email: 'maria@example.com', direccion: 'Zona 1' }))
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledWith(1, { nombre: 'María', apellido: 'López', telefono: '5555-9999', email: 'maria@example.com', direccion: 'Zona 1', nit: '' }))
     expect(await screen.findByText('Cliente actualizado correctamente.')).toBeInTheDocument()
   })
 
