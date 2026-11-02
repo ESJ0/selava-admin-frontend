@@ -116,7 +116,7 @@ export function ClientDetailPage() {
           <div><dt>Teléfono</dt><dd>{client.telefono}</dd></div>
           <div><dt>Correo electrónico</dt><dd>{client.email || 'No registrado'}</dd></div>
           <div><dt>Dirección</dt><dd>{client.direccion || 'No registrada'}</dd></div>
-          <div><dt>NIT</dt><dd title={client.nit ? undefined : 'NIT no disponible en la API actual'}>{client.nit || '—'}</dd></div>
+          <div><dt>NIT</dt><dd>{client.nit || '—'}</dd></div>
           <div className="ad-span2"><dt>Fecha de registro</dt><dd>{registeredDate.format(new Date(client.created_at))}</dd></div>
         </dl>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>

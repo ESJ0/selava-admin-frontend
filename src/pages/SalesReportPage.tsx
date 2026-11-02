@@ -22,17 +22,53 @@ function smooth(points: [number, number][]) {
   return d
 }
 
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic']
+const MONTHS_LONG = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+const dayMs = 86400000
+const parseDay = (value: string) => { const [y, m, d] = value.slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d) }
+const isoDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
+interface Bucket { key: string; label: string; long: string; total: number; pays: number }
+
+/** Los períodos de más de dos meses se agrupan por mes; los cortos, por día. Siempre se rellenan los huecos con cero. */
+function salesBuckets(report: ReporteVentas): { monthly: boolean; buckets: Bucket[] } {
+  const start = parseDay(report.fecha_inicio), end = parseDay(report.fecha_fin)
+  const monthly = Math.round((end.getTime() - start.getTime()) / dayMs) > 62
+  const map = new Map<string, Bucket>()
+  if (monthly) {
+    for (let d = new Date(start.getFullYear(), start.getMonth(), 1); d <= end; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      map.set(key, { key, label: MONTHS[d.getMonth()], long: `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`, total: 0, pays: 0 })
+    }
+  } else {
+    for (let d = new Date(start); d <= end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+      const key = isoDay(d)
+      map.set(key, { key, label: dashDay(key), long: dashDay(key), total: 0, pays: 0 })
+    }
+  }
+  report.ventas_por_dia.forEach((day) => {
+    const bucket = map.get(monthly ? day.fecha.slice(0, 7) : day.fecha.slice(0, 10))
+    if (bucket) { bucket.total += day.total_ventas; bucket.pays += day.cantidad_pagos }
+  })
+  return { monthly, buckets: [...map.values()] }
+}
+
 function SalesChart({ report }: { report: ReporteVentas }) {
-  const days = report.ventas_por_dia.filter((day) => day.total_ventas > 0).slice().sort((a, b) => a.fecha.localeCompare(b.fecha))
-  const max = Math.max(1, ...days.map((day) => day.total_ventas))
-  const nice = Math.ceil(max / 75) * 75
-  const t0 = new Date(`${report.fecha_inicio.slice(0, 10)}T12:00`).getTime(), t1 = new Date(`${report.fecha_fin.slice(0, 10)}T12:00`).getTime()
-  const X = (value: string) => days.length === 1 ? 400 : 80 + ((new Date(`${value.slice(0, 10)}T12:00`).getTime() - t0) / Math.max(1, t1 - t0)) * 640
+  const { monthly, buckets } = salesBuckets(report)
+  const n = buckets.length
+  const max = Math.max(1, ...buckets.map((bucket) => bucket.total))
+  // Escala con divisiones redondas (Q75, Q100, Q250, Q500…).
+  const raw = max / 4, pow = 10 ** Math.floor(Math.log10(raw))
+  const stepY = [1, 2, 2.5, 5, 7.5, 10].map((f) => f * pow).find((value) => value >= raw) ?? raw
+  const nice = stepY * 4
+  const X = (index: number) => n === 1 ? 400 : 80 + index / (n - 1) * 640
   const Y = (value: number) => 280 - (value / nice) * 250
-  const points = days.map((day) => [X(day.fecha), Y(day.total_ventas)] as [number, number])
+  const points = buckets.map((bucket, i) => [X(i), Y(bucket.total)] as [number, number])
   const line = smooth(points)
   const area = points.length ? `${line} L${points[points.length - 1][0].toFixed(1)} 280 L${points[0][0].toFixed(1)} 280 Z` : ''
-  return <svg viewBox="0 0 760 320" className="rp-chart" role="img" aria-label="Gráfica de ventas por día">
+  // Como máximo ~10 etiquetas en el eje para que no se encimen.
+  const step = Math.max(1, Math.ceil(n / 10))
+  return <svg viewBox="0 0 760 320" className="rp-chart" role="img" aria-label={monthly ? 'Gráfica de ventas por mes' : 'Gráfica de ventas por día'}>
     <defs><linearGradient id="rp-vg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#0E9BD6" stopOpacity=".32" /><stop offset="1" stopColor="#0E9BD6" stopOpacity="0" /></linearGradient></defs>
     {[0, 1, 2, 3, 4].map((i) => <g key={i}>
       <line x1="60" x2="740" y1={280 - i * 62.5} y2={280 - i * 62.5} stroke="#E6EEF2" strokeDasharray="4 6" />
@@ -40,18 +76,22 @@ function SalesChart({ report }: { report: ReporteVentas }) {
     </g>)}
     <path className="rp-areaf" d={area} fill="url(#rp-vg)" />
     <path className="rp-draw" d={line} fill="none" stroke="#0E9BD6" strokeWidth="3.5" strokeLinecap="round" />
-    {days.map((day, i) => {
+    {buckets.map((bucket, i) => {
       const [x, y] = points[i]
-      const tx = Math.max(60, Math.min(620, x - 60)), ty = y > 90 ? y - 62 : y + 14
-      const label = `${dashDay(day.fecha)}: ${qMoney(day.total_ventas)}`
-      return <g key={day.fecha} className="rp-pt" tabIndex={0} aria-label={label}>
-        <line x1={x} x2={x} y1={y} y2="280" stroke="#BFE6F7" strokeWidth="1.5" strokeDasharray="3 4" />
-        <circle cx={x} cy={y} r="16" fill="transparent" />
-        <circle className="dot" cx={x} cy={y} r="6" fill="#fff" stroke="#0A2433" strokeWidth="3" />
-        <text x={x} y="302" textAnchor="middle" fontSize="12" fill="#5A7280" fontFamily="Instrument Sans, sans-serif">{dashDay(day.fecha)}</text>
-        <g className="tip" aria-hidden="true"><rect x={tx} y={ty} width="120" height="48" rx="12" fill="#0A2433" />
-          <text x={tx + 60} y={ty + 22} textAnchor="middle" fontSize="16" fontWeight="800" fill="#FFC93C" fontFamily="Bricolage Grotesque, sans-serif">{qMoney(day.total_ventas)}</text>
-          <text x={tx + 60} y={ty + 38} textAnchor="middle" fontSize="11" fill="#A9C1CD" fontFamily="Instrument Sans, sans-serif">{day.cantidad_pagos} {day.cantidad_pagos === 1 ? 'pago' : 'pagos'}</text></g>
+      const showLabel = i % step === 0 || i === n - 1 && (n - 1) % step > step / 2
+      return <g key={bucket.key}>
+        {showLabel && <text x={x} y="302" textAnchor="middle" fontSize="12" fill="#5A7280" fontFamily="Instrument Sans, sans-serif">{bucket.label}</text>}
+        {bucket.total > 0 && (() => {
+          const tx = Math.max(60, Math.min(600, x - 70)), ty = y > 90 ? y - 62 : y + 14
+          return <g className="rp-pt" tabIndex={0} aria-label={`${bucket.long}: ${qMoney(bucket.total)}`}>
+            <line x1={x} x2={x} y1={y} y2="280" stroke="#BFE6F7" strokeWidth="1.5" strokeDasharray="3 4" />
+            <circle cx={x} cy={y} r="16" fill="transparent" />
+            <circle className="dot" cx={x} cy={y} r={n > 40 ? 4.5 : 6} fill="#fff" stroke="#0A2433" strokeWidth="3" />
+            <g className="tip" aria-hidden="true"><rect x={tx} y={ty} width="140" height="48" rx="12" fill="#0A2433" />
+              <text x={tx + 70} y={ty + 22} textAnchor="middle" fontSize="16" fontWeight="800" fill="#FFC93C" fontFamily="Bricolage Grotesque, sans-serif">{qMoney(bucket.total)}</text>
+              <text x={tx + 70} y={ty + 38} textAnchor="middle" fontSize="11" fill="#A9C1CD" fontFamily="Instrument Sans, sans-serif">{bucket.long} · {bucket.pays} {bucket.pays === 1 ? 'pago' : 'pagos'}</text></g>
+          </g>
+        })()}
       </g>
     })}
   </svg>
@@ -60,6 +100,7 @@ function SalesChart({ report }: { report: ReporteVentas }) {
 export function SalesReportPage() {
   const { period, report, loading, error, badRange, pick, setFrom, setTo, retry } = useReport(getSalesReport)
   const e = useCountUp(report)
+  const monthly = report ? salesBuckets(report).monthly : false
   const days = (report?.ventas_por_dia ?? []).filter((day) => day.total_ventas > 0)
   const methods = (report?.ventas_por_metodo_pago ?? []).filter((item) => item.total_ventas > 0)
   const total = report?.total_ventas ?? 0, sales = report?.cantidad_ventas ?? 0, pays = report?.cantidad_pagos ?? 0
@@ -79,7 +120,7 @@ export function SalesReportPage() {
     </section>
     <section className="rp-rg">
       <div className="rp-panel" style={{ animationDelay: '.38s' }}>
-        <PanelHead title="Ventas por día" sub="Monto recibido diariamente · pasa el mouse por los puntos"><span className="rp-legend1"><i />Ventas</span></PanelHead>
+        <PanelHead title={monthly ? 'Ventas por mes' : 'Ventas por día'} sub={`${monthly ? 'Monto recibido cada mes' : 'Monto recibido diariamente'} · pasa el mouse por los puntos`}><span className="rp-legend1"><i />Ventas</span></PanelHead>
         {!report ? <div className="rp-loading" role="status">{loading ? 'Cargando reporte…' : 'Sin datos.'}</div>
           : days.length ? <SalesChart key={`${report.fecha_inicio}-${report.fecha_fin}`} report={report} />
           : <div className="rp-emptyr">No hay pagos en este período.</div>}

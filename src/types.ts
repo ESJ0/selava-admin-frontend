@@ -21,6 +21,7 @@ export interface ClienteCreate {
   telefono: string
   email?: string
   direccion?: string
+  nit?: string
 }
 export type ClienteUpdate = Partial<ClienteCreate & Pick<Cliente, 'activo'>>
 export type ClienteListResponse = Cliente[]

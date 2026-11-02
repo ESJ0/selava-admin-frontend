@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { SessionScreen } from '../components/admin/SessionScreen'
 import { tokenIdentity, useAuth } from '../store/auth'
 
 export function AuthCallbackPage() {
@@ -10,8 +11,15 @@ export function AuthCallbackPage() {
   useEffect(() => {
     window.history.replaceState(null, '', '/auth/callback')
     if (!identity) return
-    setToken(token)
-    navigate(identity.roleId === 3 ? '/pedidos' : '/inicio', { replace: true })
+    // Breve pausa para mostrar la pantalla de bienvenida antes de entrar al panel.
+    const timer = window.setTimeout(() => {
+      setToken(token)
+      navigate(identity.roleId === 3 ? '/pedidos' : '/inicio', { replace: true })
+    }, import.meta.env.MODE === 'test' ? 0 : 900)
+    return () => window.clearTimeout(timer)
   }, [identity, navigate, setToken, token])
-  return <main className="login-page"><section className="login-card"><h1>Validando sesión</h1>{!identity ? <><div className="alert error">La sesión recibida no es válida o ya venció.</div><a className="primary wide" href={(import.meta.env.VITE_LOGIN_URL || 'http://localhost:5174/login')}>Volver al login</a></> : <p>Preparando tu espacio de trabajo…</p>}</section></main>
+  if (!identity) return <SessionScreen tone="error" title="Sesión no válida" text="La sesión recibida no es válida o ya venció.">
+    <a className="ss-btn" href={(import.meta.env.VITE_LOGIN_URL || 'http://localhost:5174/login')}>Volver al inicio de sesión</a>
+  </SessionScreen>
+  return <SessionScreen title="Iniciando sesión" text="Preparando tu espacio de trabajo…" />
 }

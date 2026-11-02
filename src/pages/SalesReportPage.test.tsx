@@ -40,7 +40,7 @@ describe('SalesReportPage', () => {
     expect(screen.getByRole('img', { name: 'Gráfica de ventas por día' }).querySelectorAll('.rp-pt')).toHaveLength(2)
     expect(screen.getByText('Efectivo')).toBeInTheDocument()
     expect(screen.getByText('80%')).toBeInTheDocument()
-    expect(within(screen.getByRole('img', { name: 'Gráfica de ventas por día' })).getByText('11-sept')).toBeInTheDocument()
+    expect(within(screen.getByRole('img', { name: 'Gráfica de ventas por día' })).getByLabelText('11-sept: Q 300.00')).toBeInTheDocument()
     expect(screen.getAllByText(/Mejor día/)[0].closest('.rp-ins')).toHaveTextContent('Mejor día: 11-sept con Q 300.00.')
     expect(screen.getByText('5 pagos registrados')).toBeInTheDocument()
     expect(screen.getByText('+ Q 300.00')).toBeInTheDocument()
@@ -91,5 +91,20 @@ describe('SalesReportPage', () => {
     await screen.findByText('Q 500.00')
     await user.click(screen.getByRole('button', { name: 'Descargar PDF' }))
     await waitFor(() => expect(mocks.exportPdf).toHaveBeenCalledWith(report))
+  })
+
+  it('agrupa por mes los períodos largos para que la gráfica no se amontone', async () => {
+    mocks.getReport.mockResolvedValue({ ...report, fecha_inicio: '2026-01-01', fecha_fin: '2026-11-02', ventas_por_dia: [
+      { fecha: '2026-09-23', cantidad_ventas: 1, cantidad_pagos: 1, total_ventas: 75 },
+      { fecha: '2026-10-21', cantidad_ventas: 2, cantidad_pagos: 2, total_ventas: 300 },
+      { fecha: '2026-10-26', cantidad_ventas: 1, cantidad_pagos: 1, total_ventas: 20 },
+    ] })
+    render(<SalesReportPage />)
+    const chart = await screen.findByRole('img', { name: 'Gráfica de ventas por mes' })
+    expect(screen.getByRole('heading', { name: 'Ventas por mes' })).toBeInTheDocument()
+    expect(chart.querySelectorAll('.rp-pt')).toHaveLength(2)
+    expect(within(chart).getByLabelText('octubre 2026: Q 320.00')).toBeInTheDocument()
+    expect(within(chart).getByText('ene')).toBeInTheDocument()
+    expect(within(chart).getByText('nov')).toBeInTheDocument()
   })
 })

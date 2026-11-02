@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -15,9 +15,9 @@ describe('Layout', () => {
     expect(within(nav).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual(['Operación', 'Catálogos', 'Administración', 'Reportes'])
     expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual([
       'Inicio',
+      'Clientes',
       'Nuevo pedido',
       'Consultar pedidos',
-      'Clientes',
       'Tipos de prenda',
       'Promociones',
       'Tipos de servicio',
@@ -36,7 +36,7 @@ describe('Layout', () => {
     await user.click(ordersButton)
     expect(ordersButton).toHaveAttribute('aria-expanded', 'true')
     const operation = within(nav).getByRole('region', { name: 'Operación' })
-    expect(within(operation).getAllByRole('link').map((link) => link.textContent)).toEqual(['Nuevo pedido', 'Consultar pedidos', 'Clientes'])
+    expect(within(operation).getAllByRole('link').map((link) => link.textContent)).toEqual(['Clientes', 'Nuevo pedido', 'Consultar pedidos'])
     expect(within(nav).getByRole('region', { name: 'Pedidos' })).toBeInTheDocument()
   })
 
@@ -51,5 +51,15 @@ describe('Layout', () => {
     expect(screen.queryByRole('link', { name: 'Métodos de pago' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Usuarios' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual(['Operación', 'Catálogos'])
+  })
+
+  it('muestra la pantalla de cierre con el logo antes de cerrar la sesión', async () => {
+    const user = userEvent.setup()
+    useAuth.setState({ token: 'test-token', roleId: 1 })
+    render(<MemoryRouter><Layout><div>Contenido</div></Layout></MemoryRouter>)
+    await user.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
+    expect(screen.getByRole('heading', { name: 'Cerrando sesión' })).toBeInTheDocument()
+    await waitFor(() => expect(useAuth.getState().token).toBeNull())
+    expect(sessionStorage.getItem('selava_logout')).toBe('1')
   })
 })
